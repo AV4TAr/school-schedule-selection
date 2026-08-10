@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  launchd service for the supervision schedule app.
+
+  Before installing, replace every /Users/Shared/school-schedule-selection with
+  the real checkout path, and check that the Node in PATH below is the one you
+  built with (`which node`).
+
+    cp deploy/com.school.schedule.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.school.schedule.plist
+
+  HOSTNAME=127.0.0.1 keeps the app on loopback. The reverse proxy is then the
+  only route in — the app has no authentication of its own.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.school.schedule</string>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/Shared/school-schedule-selection</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/bin/npm</string>
+        <string>start</string>
+    </array>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>NODE_ENV</key>
+        <string>production</string>
+        <key>HOSTNAME</key>
+        <string>127.0.0.1</string>
+        <key>PORT</key>
+        <string>3000</string>
+        <!-- Point at an absolute path if the database lives outside the repo. -->
+        <!-- <key>DATABASE_PATH</key>
+             <string>/Users/Shared/schedule-data/schedule.db</string> -->
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+
+    <!-- Don't hammer restarts if it's crash-looping on a bad build. -->
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <key>StandardOutPath</key>
+    <string>/Users/Shared/school-schedule-selection/logs/stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/Shared/school-schedule-selection/logs/stderr.log</string>
+</dict>
+</plist>

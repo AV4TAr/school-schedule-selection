@@ -1,0 +1,95 @@
+/**
+ * Design tokens — the single source of truth for the whole product.
+ *
+ * The app imports this from globals.css; the design-system previews inline it
+ * verbatim at build time. Change a value here and both move together.
+ *
+ * Light and dark live in one place via `light-dark()`, so a token can never be
+ * updated in one theme and forgotten in the other. Which branch applies is
+ * decided by `color-scheme`, set from the `data-theme` attribute below:
+ *
+ *   (none) or light  → always light   ← the default
+ *   dark             → always dark
+ *   system           → follow the OS
+ *
+ * Naming: `--c-*` colour, `--t-*` type, `--r-*` radius, `--e-*` elevation.
+ */
+
+:root {
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+:root[data-theme="system"] {
+  color-scheme: light dark;
+}
+
+:root {
+  /* --- Surfaces, stacked back to front -------------------------------- */
+  --c-bg: light-dark(#fbfbfc, #0a0a0c);
+  --c-surface: light-dark(#ffffff, #131316);
+  --c-raised: light-dark(#f4f4f6, #1b1b20);
+  --c-line: light-dark(#e6e6ea, #26262d);
+  --c-line-strong: light-dark(#d3d3da, #35353e);
+
+  /* --- Text, in descending prominence --------------------------------- */
+  --c-text: light-dark(#0f0f11, #f2f2f5);
+  --c-text-2: light-dark(#5c5c66, #a1a1ad);
+  --c-text-3: light-dark(#8f8f9b, #71717d);
+
+  /* --- Accent ---------------------------------------------------------- */
+  --c-accent: light-dark(#5b5bd6, #8b8bf5);
+  --c-accent-hover: light-dark(#4a4ac4, #9d9df7);
+  --c-accent-fg: light-dark(#ffffff, #10101a);
+  --c-accent-soft: light-dark(#eeeefc, #1d1d3d);
+  --c-accent-line: light-dark(#c9c9f5, #3a3a6b);
+
+  /* --- Semantic states -------------------------------------------------- */
+  --c-ok: light-dark(#0f7b5f, #3dd9a0);
+  --c-ok-soft: light-dark(#e7f6f0, #08281f);
+  --c-ok-line: light-dark(#a8ddca, #14503e);
+
+  --c-warn: light-dark(#9a6400, #f0b429);
+  --c-warn-soft: light-dark(#fdf4e3, #2b2005);
+  --c-warn-line: light-dark(#eccd8e, #5a4410);
+
+  --c-danger: light-dark(#c8322f, #f87171);
+  --c-danger-soft: light-dark(#fdecec, #2c1113);
+  --c-danger-line: light-dark(#f2b5b3, #5e2426);
+
+  /* --- Per-person hues, assigned by roster position --------------------- */
+  --c-p1: light-dark(#5b5bd6, #8b8bf5);
+  --c-p2: light-dark(#0f7b5f, #3dd9a0);
+  --c-p3: light-dark(#b4530a, #f0a355);
+  --c-p4: light-dark(#9333a8, #d08bf0);
+  --c-p5: light-dark(#0e7490, #4cc4e0);
+  --c-p6: light-dark(#be123c, #f77e9b);
+
+  /* --- Type ------------------------------------------------------------- */
+  --t-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+  --t-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+  --t-2xs: 0.6875rem; /* 11px — pills, meta */
+  --t-xs: 0.75rem; /* 12px — labels, captions */
+  --t-sm: 0.8125rem; /* 13px — table body, the workhorse */
+  --t-base: 0.875rem; /* 14px — controls, prose */
+  --t-lg: 1rem; /* 16px — section titles */
+  --t-xl: 1.375rem; /* 22px — page titles */
+
+  --t-tight: -0.011em;
+  --t-tighter: -0.021em;
+
+  /* --- Radii ------------------------------------------------------------ */
+  --r-sm: 5px;
+  --r-md: 7px;
+  --r-lg: 11px;
+  --r-full: 999px;
+
+  /* --- Elevation — restrained on purpose, borders do most of the work --- */
+  --e-1: 0 1px 2px light-dark(rgb(16 16 20 / 0.04), rgb(0 0 0 / 0.4));
+  --e-2: 0 1px 2px light-dark(rgb(16 16 20 / 0.05), rgb(0 0 0 / 0.5)),
+    0 4px 12px light-dark(rgb(16 16 20 / 0.06), rgb(0 0 0 / 0.45));
+  --e-focus: 0 0 0 3px color-mix(in srgb, var(--c-accent) 22%, transparent);
+}

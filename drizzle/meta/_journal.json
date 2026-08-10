@@ -8,6 +8,13 @@
       "when": 1786398130874,
       "tag": "0000_green_mach_iv",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1786401143250,
+      "tag": "0001_living_power_man",
+      "breakpoints": true
     }
   ]
 }

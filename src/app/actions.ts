@@ -15,11 +15,30 @@ import {
   getSolverSettings,
   saveSolverSettings,
 } from "@/lib/db/queries";
+import { popUndo, pushUndo, type UndoLabel } from "@/lib/db/undo";
 import { solve } from "@/lib/solver";
 import type { SolverSettings, Weekday } from "@/lib/types";
 
 function refresh() {
   revalidatePath("/", "layout");
+}
+
+/** Look up a name for the undo label before the row is changed or removed. */
+function personName(id: number): string {
+  return db.select().from(people).where(eq(people.id, id)).get()?.name ?? "?";
+}
+
+function shiftName(id: number): string {
+  return db.select().from(shifts).where(eq(shifts.id, id)).get()?.name ?? "?";
+}
+
+// --- Undo -----------------------------------------------------------------
+
+/** Reverse the most recent action. Deliberately not itself undoable. */
+export async function undoLast() {
+  const label = popUndo();
+  refresh();
+  return label;
 }
 
 // --- Schedule -------------------------------------------------------------
@@ -30,8 +49,9 @@ function refresh() {
  */
 export async function generateSchedule() {
   ensureCurrentSchedule();
-  const pins = getAssignments().filter((a) => a.pinned);
+  pushUndo({ key: "generate" });
 
+  const pins = getAssignments().filter((a) => a.pinned);
   const result = solve({
     people: getPeople(),
     availability: getAvailability(),
@@ -77,6 +97,11 @@ export async function togglePin(shiftId: number, personId: number) {
     .get();
   if (!row) return;
 
+  pushUndo({
+    key: row.pinned ? "unpin" : "pin",
+    params: { person: personName(personId), shift: shiftName(shiftId) },
+  });
+
   db.update(assignments)
     .set({ pinned: !row.pinned })
     .where(eq(assignments.id, row.id))
@@ -86,6 +111,7 @@ export async function togglePin(shiftId: number, personId: number) {
 
 export async function clearPins() {
   ensureCurrentSchedule();
+  pushUndo({ key: "clearPins" });
   db.update(assignments)
     .set({ pinned: false })
     .where(eq(assignments.scheduleId, CURRENT_SCHEDULE_ID))
@@ -98,6 +124,7 @@ export async function clearPins() {
 export async function createPerson(name: string) {
   const trimmed = name.trim();
   if (!trimmed) return;
+  pushUndo({ key: "addPerson", params: { person: trimmed } });
   db.insert(people).values({ name: trimmed }).run();
   refresh();
 }
@@ -112,11 +139,13 @@ export async function updatePerson(id: number, patch: { name?: string; active?: 
   if (patch.active !== undefined) set.active = patch.active;
   if (Object.keys(set).length === 0) return;
 
+  pushUndo({ key: "editPerson", params: { person: personName(id) } });
   db.update(people).set(set).where(eq(people.id, id)).run();
   refresh();
 }
 
 export async function deletePerson(id: number) {
+  pushUndo({ key: "deletePerson", params: { person: personName(id) } });
   db.delete(people).where(eq(people.id, id)).run();
   refresh();
 }
@@ -128,6 +157,7 @@ export async function createAvailability(
   endMin: number,
 ) {
   if (endMin <= startMin) return;
+  pushUndo({ key: "addWindow", params: { person: personName(personId) } });
   db.insert(availability).values({ personId, weekday, startMin, endMin }).run();
   refresh();
 }
@@ -141,6 +171,7 @@ export async function updateAvailability(
   const next = { ...row, ...patch };
   if (next.endMin <= next.startMin) return;
 
+  pushUndo({ key: "editWindow", params: { person: personName(row.personId) } });
   db.update(availability)
     .set({ weekday: next.weekday, startMin: next.startMin, endMin: next.endMin })
     .where(eq(availability.id, id))
@@ -149,6 +180,9 @@ export async function updateAvailability(
 }
 
 export async function deleteAvailability(id: number) {
+  const row = db.select().from(availability).where(eq(availability.id, id)).get();
+  if (!row) return;
+  pushUndo({ key: "deleteWindow", params: { person: personName(row.personId) } });
   db.delete(availability).where(eq(availability.id, id)).run();
   refresh();
 }
@@ -177,6 +211,7 @@ function normaliseShift(input: ShiftInput): ShiftInput | null {
 export async function createShift(input: ShiftInput) {
   const clean = normaliseShift(input);
   if (!clean) return;
+  pushUndo({ key: "addShift", params: { shift: clean.name } });
   db.insert(shifts).values({ ...clean, active: clean.active ?? true }).run();
   refresh();
 }
@@ -184,6 +219,7 @@ export async function createShift(input: ShiftInput) {
 export async function updateShift(id: number, input: ShiftInput) {
   const clean = normaliseShift(input);
   if (!clean) return;
+  pushUndo({ key: "editShift", params: { shift: shiftName(id) } });
   db.update(shifts)
     .set({ ...clean, active: clean.active ?? true })
     .where(eq(shifts.id, id))
@@ -192,6 +228,7 @@ export async function updateShift(id: number, input: ShiftInput) {
 }
 
 export async function deleteShift(id: number) {
+  pushUndo({ key: "deleteShift", params: { shift: shiftName(id) } });
   db.delete(shifts).where(eq(shifts.id, id)).run();
   refresh();
 }
@@ -199,6 +236,9 @@ export async function deleteShift(id: number) {
 // --- Settings -------------------------------------------------------------
 
 export async function updateSettings(next: SolverSettings) {
+  pushUndo({ key: "editSettings" });
   saveSolverSettings(next);
   refresh();
 }
+
+export type { UndoLabel };

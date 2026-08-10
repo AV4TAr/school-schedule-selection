@@ -79,6 +79,7 @@ const en = {
     idleHint: "Time spent waiting between shifts",
     spread: "Spread",
     spreadHint: "Difference between the most and least loaded person",
+    fairShare: "Even split across everyone",
     totalStaffed: "Total staffed hours",
   },
   people: {
@@ -131,6 +132,35 @@ const en = {
     reset: "Restore defaults",
     saved: "Settings saved.",
   },
+  theme: {
+    label: "Theme",
+    light: "Light",
+    dark: "Dark",
+    system: "Match system",
+  },
+  undo: {
+    label: "Undo",
+    empty: "Nothing to undo",
+    shortcut: "\u2318Z / Ctrl+Z",
+    tooltip: "Undo: {action}",
+    actions: {
+      unknown: "last change",
+      generate: "generating the schedule",
+      pin: "locking {person} to {shift}",
+      unpin: "unlocking {person} from {shift}",
+      clearPins: "clearing all locks",
+      addPerson: "adding {person}",
+      editPerson: "editing {person}",
+      deletePerson: "removing {person}",
+      addWindow: "adding availability for {person}",
+      editWindow: "editing availability for {person}",
+      deleteWindow: "removing availability for {person}",
+      addShift: "adding {shift}",
+      editShift: "editing {shift}",
+      deleteShift: "removing {shift}",
+      editSettings: "changing settings",
+    },
+  },
   print: {
     title: "Weekly schedule",
     printedOn: "Printed {date}",
@@ -140,16 +170,20 @@ const en = {
   },
 } as const;
 
-/** Structural type derived from English so Spanish cannot drift out of sync. */
-export type Dictionary = {
-  -readonly [K in keyof typeof en]: typeof en[K] extends string
+/**
+ * Structural type derived from English so Spanish cannot drift out of sync:
+ * a missing, extra or misspelled key is a compile error. Recurses to any depth
+ * and widens the `as const` literals back to plain strings.
+ */
+type Translated<T> = {
+  -readonly [K in keyof T]: T[K] extends string
     ? string
-    : {
-        -readonly [P in keyof typeof en[K]]: typeof en[K][P] extends string
-          ? string
-          : readonly string[];
-      };
+    : T[K] extends readonly string[]
+      ? readonly string[]
+      : Translated<T[K]>;
 };
+
+export type Dictionary = Translated<typeof en>;
 
 const es: Dictionary = {
   appName: "Horario de Supervisión Escolar",
@@ -218,6 +252,7 @@ const es: Dictionary = {
     idleHint: "Tiempo muerto entre turnos",
     spread: "Diferencia",
     spreadHint: "Diferencia entre quien más y quien menos trabaja",
+    fairShare: "Reparto parejo entre todas",
     totalStaffed: "Horas cubiertas en total",
   },
   people: {
@@ -270,6 +305,35 @@ const es: Dictionary = {
     dayOff: "Dar un día libre a cada una",
     reset: "Restaurar valores por defecto",
     saved: "Ajustes guardados.",
+  },
+  theme: {
+    label: "Tema",
+    light: "Claro",
+    dark: "Oscuro",
+    system: "Seguir al sistema",
+  },
+  undo: {
+    label: "Deshacer",
+    empty: "Nada para deshacer",
+    shortcut: "\u2318Z / Ctrl+Z",
+    tooltip: "Deshacer: {action}",
+    actions: {
+      unknown: "el \u00faltimo cambio",
+      generate: "generar el horario",
+      pin: "fijar a {person} en {shift}",
+      unpin: "desfijar a {person} de {shift}",
+      clearPins: "quitar todos los fijados",
+      addPerson: "agregar a {person}",
+      editPerson: "editar a {person}",
+      deletePerson: "quitar a {person}",
+      addWindow: "agregar disponibilidad de {person}",
+      editWindow: "editar disponibilidad de {person}",
+      deleteWindow: "quitar disponibilidad de {person}",
+      addShift: "agregar {shift}",
+      editShift: "editar {shift}",
+      deleteShift: "quitar {shift}",
+      editSettings: "cambiar los ajustes",
+    },
   },
   print: {
     title: "Horario semanal",

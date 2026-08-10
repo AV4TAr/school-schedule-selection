@@ -73,6 +73,32 @@ the pinned rows back out and feeds them to the solver as constraints, so user
 locks survive regeneration. Pins the solver cannot honour come back in
 `droppedPins` rather than being silently applied or dropped.
 
+### Theming
+
+`src/styles/tokens.css` declares light and dark together via `light-dark()`;
+which branch applies is decided by `color-scheme`, driven by `data-theme` on
+`<html>` (absent/`light` → light, `dark` → dark, `system` → follow the OS).
+Default is **light**. Lightning CSS downlevels `light-dark()` into a custom-
+property switch that keeps those semantics — verify in the built CSS, not by
+grepping for `light-dark` in the output.
+
+`THEME_INIT_SCRIPT` is inlined in `<head>` to stamp the attribute before first
+paint. Without it a dark-theme user gets a flash of light on every navigation.
+
+### Undo
+
+`src/lib/db/undo.ts`. Each mutating action calls `pushUndo({ key, params })`
+first, which snapshots **all** mutable tables into `undo_stack` (capped at 5).
+Undoing restores the snapshot wholesale rather than applying a per-action
+inverse — the dataset is a few kilobytes, and this stays correct when one action
+touches several tables. Restore preserves explicit row ids so assignments and
+pins keep pointing at the same rows.
+
+Two rules: `undoLast` must never call `pushUndo` (undo would undo itself), and
+any **new mutating action must call `pushUndo`** or it becomes silently
+un-undoable. Labels are stored as a key plus params, never a finished sentence,
+so they translate at render time.
+
 ### i18n
 
 English is the source of truth in `src/lib/i18n/dictionaries.ts`: its shape
@@ -83,6 +109,19 @@ to the stored preference — do not replace this with `useState` + `useEffect`,
 the lint rule and hydration both object.
 
 `formatTime` is locale-dependent: English renders 12-hour, Spanish 24-hour.
+
+The `Dictionary` type recurses to any depth, so nested groups like
+`undo.actions` are checked too.
+
+### Design system
+
+`design-system/build.mjs` emits preview pages that **inline `tokens.css` and
+`components.css` verbatim** — the same files the app ships — so a preview cannot
+drift from the product. That is why the primitives in `components.css` are plain
+CSS rather than `@apply`: the previews have no Tailwind. They stay inside
+`@layer components` so Tailwind utilities still win for one-off overrides
+(`class="field w-48"`); check that layer order survives if you touch the CSS
+entry point. Rebuild and re-publish with DesignSync after changing tokens.
 
 ### Seed data
 

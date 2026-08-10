@@ -12,7 +12,12 @@ import {
 } from "@/app/actions";
 import { useI18n } from "@/lib/i18n/context";
 import { parseTime, toTimeInput } from "@/lib/time";
-import { SCHOOL_WEEKDAYS, type AvailabilityWindow, type Person, type Weekday } from "@/lib/types";
+import {
+  SCHOOL_WEEKDAYS,
+  type AvailabilityWindow,
+  type Person,
+  type Weekday,
+} from "@/lib/types";
 
 interface Props {
   people: Person[];
@@ -33,14 +38,14 @@ export function PeopleEditor({ people, availability }: Props) {
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-4">
+      <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">{t.people.title}</h1>
-          <p className="mt-1 text-sm text-muted">{t.people.subtitle}</p>
+          <h1 className="page-title">{t.people.title}</h1>
+          <p className="mt-1 text-base text-muted">{t.people.subtitle}</p>
         </div>
         <div className="flex items-center gap-2">
           <input
-            className="field w-52"
+            className="field w-48"
             placeholder={t.people.newPerson}
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
@@ -57,16 +62,17 @@ export function PeopleEditor({ people, availability }: Props) {
         </div>
       </header>
 
-      <p className="text-xs text-muted">{t.people.windowHint}</p>
-
       {people.length === 0 ? (
-        <p className="card p-8 text-center text-sm text-muted">{t.people.emptyState}</p>
+        <p className="card px-6 py-16 text-center text-base text-muted">
+          {t.people.emptyState}
+        </p>
       ) : (
-        <div className="space-y-4">
-          {people.map((person) => (
+        <div className="space-y-3">
+          {people.map((person, index) => (
             <PersonCard
               key={person.id}
               person={person}
+              hue={(index + 1) % 6}
               windows={availability.filter((w) => w.personId === person.id)}
               pending={pending}
               run={startTransition}
@@ -74,17 +80,21 @@ export function PeopleEditor({ people, availability }: Props) {
           ))}
         </div>
       )}
+
+      <p className="text-xs text-faint">{t.people.windowHint}</p>
     </div>
   );
 }
 
 function PersonCard({
   person,
+  hue,
   windows,
   pending,
   run,
 }: {
   person: Person;
+  hue: number;
   windows: AvailabilityWindow[];
   pending: boolean;
   run: (fn: () => void) => void;
@@ -94,25 +104,31 @@ function PersonCard({
 
   const commitName = () => {
     const trimmed = name.trim();
-    if (!trimmed || trimmed === person.name) {
-      setName(person.name);
-      return;
-    }
+    if (!trimmed || trimmed === person.name) return setName(person.name);
     run(() => void updatePerson(person.id, { name: trimmed }));
   };
 
   return (
-    <section className="card">
-      <div className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-3">
+    <section className={`card overflow-hidden ${person.active ? "" : "opacity-65"}`}>
+      <div className="flex flex-wrap items-center gap-3 border-b border-line bg-raised/50 px-4 py-2.5">
+        <span
+          aria-hidden
+          className="chip-dot"
+          style={{ background: `var(--c-p${hue === 0 ? 6 : hue})` }}
+        />
         <input
-          className="field w-56 font-medium"
+          className="field w-52 font-medium"
           value={name}
+          disabled={pending}
           onChange={(e) => setName(e.target.value)}
           onBlur={commitName}
           onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
         />
 
-        <label className="flex items-center gap-2 text-sm text-muted">
+        <label
+          className="flex cursor-pointer items-center gap-1.5 text-base text-muted"
+          title={t.people.inactiveHint}
+        >
           <input
             type="checkbox"
             checked={person.active}
@@ -124,9 +140,13 @@ function PersonCard({
           {t.common.active}
         </label>
 
+        <span className="pill pill-neutral">
+          {windows.length} {t.people.availability.toLowerCase()}
+        </span>
+
         <button
           type="button"
-          className="btn btn-ghost ml-auto"
+          className="btn btn-ghost btn-danger ml-auto"
           disabled={pending}
           onClick={() => {
             if (confirm(t.common.confirmDelete)) run(() => void deletePerson(person.id));
@@ -136,17 +156,15 @@ function PersonCard({
         </button>
       </div>
 
-      <div className="space-y-2 px-4 py-3">
-        <h3 className="label">{t.people.availability}</h3>
-
+      <div className="space-y-1.5 px-4 py-3">
         {windows.length === 0 ? (
-          <p className="py-1 text-sm text-warn">{t.people.noWindows}</p>
+          <p className="pill pill-warn">{t.people.noWindows}</p>
         ) : (
-          <ul className="space-y-2">
+          <ul className="space-y-1.5">
             {windows.map((w) => (
-              <li key={w.id} className="flex flex-wrap items-center gap-2">
+              <li key={w.id} className="flex flex-wrap items-center gap-1.5">
                 <select
-                  className="field w-36"
+                  className="field w-32"
                   value={w.weekday}
                   disabled={pending}
                   onChange={(e) =>
@@ -169,7 +187,7 @@ function PersonCard({
                   disabled={pending}
                   onCommit={(startMin) => run(() => void updateAvailability(w.id, { startMin }))}
                 />
-                <span className="text-muted">→</span>
+                <span className="text-faint">→</span>
                 <TimeField
                   value={w.endMin}
                   disabled={pending}
@@ -178,11 +196,12 @@ function PersonCard({
 
                 <button
                   type="button"
-                  className="btn btn-ghost"
+                  className="btn btn-ghost btn-danger btn-sm"
                   disabled={pending}
+                  aria-label={t.common.delete}
                   onClick={() => run(() => void deleteAvailability(w.id))}
                 >
-                  {t.common.delete}
+                  ✕
                 </button>
               </li>
             ))}
@@ -191,7 +210,7 @@ function PersonCard({
 
         <button
           type="button"
-          className="btn mt-1"
+          className="btn btn-sm mt-1"
           disabled={pending}
           onClick={() =>
             run(() => void createAvailability(person.id, 1, 8 * 60, 13 * 60 + 15))
@@ -216,19 +235,23 @@ export function TimeField({
 }) {
   const [draft, setDraft] = useState(toTimeInput(value));
 
+  // Re-sync when the value changes underneath us (another edit, a reset).
+  const [lastValue, setLastValue] = useState(value);
+  if (value !== lastValue) {
+    setLastValue(value);
+    setDraft(toTimeInput(value));
+  }
+
   return (
     <input
       type="time"
-      className="field w-28 tabular-nums"
+      className="field num w-26"
       value={draft}
       disabled={disabled}
       onChange={(e) => setDraft(e.target.value)}
       onBlur={() => {
         const parsed = parseTime(draft);
-        if (parsed === null) {
-          setDraft(toTimeInput(value));
-          return;
-        }
+        if (parsed === null) return setDraft(toTimeInput(value));
         if (parsed !== value) onCommit(parsed);
       }}
     />

@@ -45,3 +45,9 @@ next-env.d.ts
 *.db
 *.db-shm
 *.db-wal
+
+# Service logs
+/logs
+
+# Design-system build output
+/design-system/dist

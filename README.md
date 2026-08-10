@@ -35,6 +35,11 @@ npm run db:generate  # regenerate migrations after editing src/lib/db/schema.ts
 | **Settings** | The hard rules (max wait between shifts, tolerated overlap) and the solver's priorities. |
 | **Print view** | A clean by-shift and by-person grid for printing or sharing. |
 
+Across every page: a **light/dark/system** theme toggle (light by default) and
+**undo** for the last five actions — the ↶ button in the header, or ⌘Z / Ctrl+Z.
+Undo works by restoring a full snapshot taken before each change, so it reverses
+any action, including a whole schedule regeneration.
+
 ## How the solver works
 
 Times are stored as minutes since midnight, so a schedule is a recurring weekly
@@ -88,6 +93,12 @@ The single change that fixes the most: **someone other than Noriko being able to
 start at 8:00**. Widen one person's window on the Staff page and hit Generate to
 see the effect immediately — that what-if is the fastest way to have the
 conversation with the team.
+
+## Deploying
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for running it as a service on a Mac mini
+behind a reverse proxy. **Read the warning at the top first** — the app has no
+authentication, so the proxy has to provide it.
 
 ## Changing the data
 

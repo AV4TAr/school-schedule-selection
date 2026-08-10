@@ -16,6 +16,10 @@ interface Props {
   weekdays: Weekday[];
 }
 
+/** Shared cell styling — thin rules read better on paper than filled cards. */
+const CELL = "border border-line px-2.5 py-1.5 align-top text-sm";
+const HEAD = `${CELL} bg-raised/60 text-left text-2xs font-semibold uppercase tracking-wide text-muted`;
+
 export function PrintView({ people, shifts, availability, assignments, weekdays }: Props) {
   const { t, locale, range, weekday, duration } = useI18n();
 
@@ -26,13 +30,17 @@ export function PrintView({ people, shifts, availability, assignments, weekdays 
   );
   const personById = useMemo(() => new Map(people.map((p) => [p.id, p])), [people]);
   const shiftById = useMemo(() => new Map(shifts.map((s) => [s.id, s])), [shifts]);
+  const gapByShift = useMemo(
+    () => new Map(analysis.gaps.map((g) => [g.shiftId, g])),
+    [analysis.gaps],
+  );
 
   return (
-    <div className="space-y-8">
-      <header className="flex items-end justify-between gap-4">
+    <div className="space-y-7">
+      <header className="flex items-start justify-between gap-4 border-b border-line pb-4">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">{t.print.title}</h1>
-          <p className="mt-1 text-sm text-muted">
+          <h1 className="page-title">{t.print.title}</h1>
+          <p className="mt-1 text-xs text-muted">
             {new Date().toLocaleDateString(locale, {
               weekday: "long",
               year: "numeric",
@@ -52,15 +60,13 @@ export function PrintView({ people, shifts, availability, assignments, weekdays 
       </header>
 
       <section className="space-y-2">
-        <h2 className="text-sm font-semibold">{t.print.byShift}</h2>
-        <table className="w-full border-collapse text-sm">
+        <h2 className="section-title">{t.print.byShift}</h2>
+        <table className="w-full border-collapse">
           <thead>
             <tr>
-              <th className="border border-line px-3 py-2 text-left font-medium">
-                {t.nav.shifts}
-              </th>
+              <th className={`${HEAD} w-40`}>{t.nav.shifts}</th>
               {weekdays.map((day) => (
-                <th key={day} className="border border-line px-3 py-2 text-left font-medium">
+                <th key={day} className={HEAD}>
                   {weekday(day)}
                 </th>
               ))}
@@ -69,9 +75,9 @@ export function PrintView({ people, shifts, availability, assignments, weekdays 
           <tbody>
             {rows.map((row) => (
               <tr key={row.key}>
-                <th className="border border-line px-3 py-2 text-left align-top font-medium">
-                  <div>{row.name}</div>
-                  <div className="text-xs font-normal text-muted tabular-nums">
+                <th className={`${CELL} bg-raised/30 text-left`}>
+                  <div className="font-semibold">{row.name}</div>
+                  <div className="num text-2xs font-normal text-muted">
                     {range(row.startMin, row.endMin)}
                   </div>
                 </th>
@@ -79,8 +85,8 @@ export function PrintView({ people, shifts, availability, assignments, weekdays 
                   const shift = row.byWeekday.get(day);
                   if (!shift) {
                     return (
-                      <td key={day} className="border border-line px-3 py-2 text-muted/40">
-                        –
+                      <td key={day} className={`${CELL} text-faint/50`}>
+                        ·
                       </td>
                     );
                   }
@@ -88,12 +94,26 @@ export function PrintView({ people, shifts, availability, assignments, weekdays 
                     .filter((a) => a.shiftId === shift.id)
                     .map((a) => personById.get(a.personId)?.name ?? "?")
                     .sort();
+                  const gap = gapByShift.get(shift.id);
                   return (
-                    <td key={day} className="border border-line px-3 py-2 align-top">
+                    <td key={day} className={CELL}>
                       {names.length > 0 ? (
-                        names.join(", ")
+                        <ul>
+                          {names.map((name) => (
+                            <li key={name}>{name}</li>
+                          ))}
+                        </ul>
                       ) : (
-                        <span className="text-muted/60">{t.schedule.unstaffed}</span>
+                        <span className="text-faint">{t.schedule.unstaffed}</span>
+                      )}
+                      {gap && (
+                        <span
+                          className={`num mt-1 inline-block text-2xs font-semibold ${
+                            gap.critical ? "text-danger" : "text-warn"
+                          }`}
+                        >
+                          {gap.assigned}/{gap.requiredIdeal}
+                        </span>
                       )}
                     </td>
                   );
@@ -105,21 +125,17 @@ export function PrintView({ people, shifts, availability, assignments, weekdays 
       </section>
 
       <section className="space-y-2 break-inside-avoid">
-        <h2 className="text-sm font-semibold">{t.print.byPerson}</h2>
-        <table className="w-full border-collapse text-sm">
+        <h2 className="section-title">{t.print.byPerson}</h2>
+        <table className="w-full border-collapse">
           <thead>
             <tr>
-              <th className="border border-line px-3 py-2 text-left font-medium">
-                {t.schedule.person}
-              </th>
+              <th className={`${HEAD} w-40`}>{t.schedule.person}</th>
               {weekdays.map((day) => (
-                <th key={day} className="border border-line px-3 py-2 text-left font-medium">
+                <th key={day} className={HEAD}>
                   {weekday(day)}
                 </th>
               ))}
-              <th className="border border-line px-3 py-2 text-right font-medium">
-                {t.schedule.hours}
-              </th>
+              <th className={`${HEAD} text-right`}>{t.schedule.hours}</th>
             </tr>
           </thead>
           <tbody>
@@ -129,7 +145,7 @@ export function PrintView({ people, shifts, availability, assignments, weekdays 
                 const workload = analysis.workloads.find((w) => w.personId === person.id);
                 return (
                   <tr key={person.id}>
-                    <th className="border border-line px-3 py-2 text-left font-medium">
+                    <th className={`${CELL} bg-raised/30 text-left font-semibold`}>
                       {person.name}
                     </th>
                     {weekdays.map((day) => {
@@ -139,12 +155,9 @@ export function PrintView({ people, shifts, availability, assignments, weekdays 
                         .filter((s): s is Shift => Boolean(s) && s!.weekday === day)
                         .sort((a, b) => a.startMin - b.startMin);
                       return (
-                        <td
-                          key={day}
-                          className="border border-line px-3 py-2 align-top text-xs tabular-nums"
-                        >
+                        <td key={day} className={`${CELL} num text-xs`}>
                           {mine.length === 0 ? (
-                            <span className="text-muted/40">–</span>
+                            <span className="text-faint/50">·</span>
                           ) : (
                             // Consecutive shifts read better as one block of time.
                             mergeBlocks(mine).map((block, i) => (
@@ -154,7 +167,7 @@ export function PrintView({ people, shifts, availability, assignments, weekdays 
                         </td>
                       );
                     })}
-                    <td className="border border-line px-3 py-2 text-right tabular-nums">
+                    <td className={`${CELL} num text-right font-semibold`}>
                       {toHours(workload?.totalMinutes ?? 0)} h
                     </td>
                   </tr>
@@ -163,8 +176,10 @@ export function PrintView({ people, shifts, availability, assignments, weekdays 
           </tbody>
         </table>
         <p className="text-xs text-muted">
-          {t.schedule.spread}: {duration(analysis.spreadMinutes)} · {t.schedule.totalStaffed}:{" "}
-          {duration(analysis.totalStaffedMinutes)}
+          {t.schedule.spread} <span className="num">{duration(analysis.spreadMinutes)}</span>
+          {" · "}
+          {t.schedule.totalStaffed}{" "}
+          <span className="num">{duration(analysis.totalStaffedMinutes)}</span>
         </p>
       </section>
     </div>

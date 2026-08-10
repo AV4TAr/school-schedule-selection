@@ -22,31 +22,36 @@ export function ShiftsEditor({ shifts }: { shifts: Shift[] }) {
     return map;
   }, [shifts]);
 
-  const days = SCHOOL_WEEKDAYS.filter(
-    (d) => (byWeekday.get(d)?.length ?? 0) > 0,
-  ).concat(SCHOOL_WEEKDAYS.filter((d) => (byWeekday.get(d)?.length ?? 0) === 0));
+  // Days that already have shifts first; empty days still shown, so a new
+  // shift can be added to any weekday.
+  const days = SCHOOL_WEEKDAYS.filter((d) => (byWeekday.get(d)?.length ?? 0) > 0).concat(
+    SCHOOL_WEEKDAYS.filter((d) => (byWeekday.get(d)?.length ?? 0) === 0),
+  );
 
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-xl font-semibold tracking-tight">{t.shifts.title}</h1>
-        <p className="mt-1 text-sm text-muted">{t.shifts.subtitle}</p>
+        <h1 className="page-title">{t.shifts.title}</h1>
+        <p className="mt-1 text-base text-muted">{t.shifts.subtitle}</p>
       </header>
 
       {shifts.length === 0 && (
-        <p className="card p-8 text-center text-sm text-muted">{t.shifts.emptyState}</p>
+        <p className="card px-6 py-16 text-center text-base text-muted">
+          {t.shifts.emptyState}
+        </p>
       )}
 
-      <div className="space-y-4">
+      <div className="space-y-3">
         {days.map((day) => {
           const list = byWeekday.get(day) ?? [];
           return (
-            <section key={day} className="card">
-              <div className="flex items-center justify-between border-b border-line px-4 py-3">
-                <h2 className="font-medium">{weekday(day)}</h2>
+            <section key={day} className="card overflow-hidden">
+              <div className="flex items-center gap-2.5 border-b border-line bg-raised/50 px-4 py-2.5">
+                <h2 className="text-sm font-semibold">{weekday(day)}</h2>
+                <span className="pill pill-neutral">{list.length}</span>
                 <button
                   type="button"
-                  className="btn"
+                  className="btn btn-sm ml-auto"
                   disabled={pending}
                   onClick={() =>
                     startTransition(
@@ -67,7 +72,7 @@ export function ShiftsEditor({ shifts }: { shifts: Shift[] }) {
               </div>
 
               {list.length === 0 ? (
-                <p className="px-4 py-4 text-sm text-muted">{t.common.none}</p>
+                <p className="px-4 py-4 text-base text-faint">{t.common.none}</p>
               ) : (
                 <ul className="divide-y divide-line">
                   {list.map((shift) => (
@@ -116,11 +121,13 @@ function ShiftRowEditor({
   };
 
   return (
-    <li className="flex flex-wrap items-end gap-3 px-4 py-3">
-      <div>
-        <label className="label mb-1">{t.common.name}</label>
+    <li
+      className={`flex flex-wrap items-end gap-3 px-4 py-3 ${shift.active ? "" : "opacity-60"}`}
+    >
+      <div className="w-44">
+        <label className="label">{t.common.name}</label>
         <input
-          className="field w-48"
+          className="field"
           value={name}
           disabled={pending}
           onChange={(e) => setName(e.target.value)}
@@ -134,7 +141,7 @@ function ShiftRowEditor({
       </div>
 
       <div>
-        <label className="label mb-1">{t.common.from}</label>
+        <label className="label">{t.common.from}</label>
         <TimeField
           value={shift.startMin}
           disabled={pending}
@@ -143,7 +150,7 @@ function ShiftRowEditor({
       </div>
 
       <div>
-        <label className="label mb-1">{t.common.to}</label>
+        <label className="label">{t.common.to}</label>
         <TimeField
           value={shift.endMin}
           disabled={pending}
@@ -151,35 +158,35 @@ function ShiftRowEditor({
         />
       </div>
 
-      <div>
-        <label className="label mb-1" title={t.shifts.requiredMinHint}>
+      <div className="w-20">
+        <label className="label" title={t.shifts.requiredMinHint}>
           {t.shifts.requiredMin}
         </label>
         <input
           type="number"
           min={0}
-          className="field w-20 tabular-nums"
+          className="field num text-right"
           value={shift.requiredMin}
           disabled={pending}
           onChange={(e) => patch({ requiredMin: Number(e.target.value) })}
         />
       </div>
 
-      <div>
-        <label className="label mb-1" title={t.shifts.requiredIdealHint}>
+      <div className="w-20">
+        <label className="label" title={t.shifts.requiredIdealHint}>
           {t.shifts.requiredIdeal}
         </label>
         <input
           type="number"
           min={0}
-          className="field w-20 tabular-nums"
+          className="field num text-right"
           value={shift.requiredIdeal}
           disabled={pending}
           onChange={(e) => patch({ requiredIdeal: Number(e.target.value) })}
         />
       </div>
 
-      <label className="mb-2 flex items-center gap-2 text-sm text-muted">
+      <label className="mb-2 flex cursor-pointer items-center gap-1.5 text-base text-muted">
         <input
           type="checkbox"
           checked={shift.active}
@@ -191,7 +198,7 @@ function ShiftRowEditor({
 
       <button
         type="button"
-        className="btn btn-ghost mb-1 ml-auto"
+        className="btn btn-ghost btn-danger btn-sm mb-1.5 ml-auto"
         disabled={pending}
         onClick={() => {
           if (confirm(t.common.confirmDelete)) run(() => void deleteShift(shift.id));

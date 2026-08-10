@@ -75,3 +75,16 @@ export const settings = sqliteTable("settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
 });
+
+/**
+ * Undo history. Each row is a complete snapshot of the mutable state taken
+ * *before* an action ran, so undoing is a restore rather than a hand-written
+ * inverse for every operation. Capped at a handful of entries by `pushUndo`.
+ */
+export const undoStack = sqliteTable("undo_stack", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  /** JSON `{ key, params }`, translated in the UI rather than stored in one language. */
+  label: text("label").notNull(),
+  snapshot: text("snapshot").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
