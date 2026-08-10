@@ -18,6 +18,12 @@ export const availability = sqliteTable(
     weekday: integer("weekday").notNull(),
     startMin: integer("start_min").notNull(),
     endMin: integer("end_min").notNull(),
+    /**
+     * How the person feels about these hours: "preferred", "neutral" or
+     * "avoid". Being unable to work is the absence of a window, not a value
+     * here — that distinction is what keeps hard and soft rules separate.
+     */
+    preference: text("preference").notNull().default("neutral"),
   },
   (t) => [index("availability_person_idx").on(t.personId, t.weekday)],
 );

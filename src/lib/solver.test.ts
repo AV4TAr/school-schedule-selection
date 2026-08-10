@@ -20,7 +20,12 @@ function buildInput(overrides: Partial<SolveInput> = {}): SolveInput {
   const windows: AvailabilityWindow[] = [];
   SEED_PEOPLE.forEach((p, i) => {
     for (const w of p.windows) {
-      windows.push({ id: windows.length + 1, personId: i + 1, ...w });
+      windows.push({
+        id: windows.length + 1,
+        personId: i + 1,
+        preference: "neutral",
+        ...w,
+      });
     }
   });
 
@@ -213,6 +218,106 @@ describe("solver", () => {
         (a) => a.shiftId === mondayLunch.id && a.personId === heather,
       ),
     ).toBe(false);
+  });
+
+  it("prefers the person who wants the hours when the choice is otherwise free", () => {
+    // Wednesday recess needs one person and Heather, Teresa and Noriko can all
+    // do it. Marking it preferred for Heather should settle the tie.
+    const base = buildInput();
+    const heather = byName(base, "Heather");
+    const wedRecess = shiftOf(base, "Recess", 3);
+
+    const keen = base.availability.map((w) =>
+      w.personId === heather && w.weekday === 3
+        ? { ...w, preference: "preferred" as const }
+        : w,
+    );
+    const after = solve({ ...base, availability: keen });
+
+    expect(
+      after.assignments.some(
+        (a) => a.shiftId === wedRecess.id && a.personId === heather,
+      ),
+    ).toBe(true);
+    expect(
+      after.workloads.find((w) => w.personId === heather)!.preferredMinutes,
+    ).toBeGreaterThan(0);
+  });
+
+  it("steers away from hours someone would rather avoid", () => {
+    // Split Heather's Wednesday into two windows so the recess slot alone is
+    // marked "avoid" — preferences attach to a window, not to a slice of one.
+    const base = buildInput();
+    const heather = byName(base, "Heather");
+    const wedRecess = shiftOf(base, "Recess", 3);
+
+    const split = base.availability.flatMap((w) =>
+      w.personId === heather && w.weekday === 3
+        ? [
+            { ...w, endMin: 11 * 60 + 40, preference: "avoid" as const },
+            { ...w, id: w.id + 1000, startMin: 11 * 60 + 40 },
+          ]
+        : [w],
+    );
+    const after = solve({ ...base, availability: split });
+
+    expect(
+      after.assignments.some(
+        (a) => a.shiftId === wedRecess.id && a.personId === heather,
+      ),
+    ).toBe(false);
+    expect(
+      after.workloads.find((w) => w.personId === heather)!.avoidedMinutes,
+    ).toBe(0);
+  });
+
+  it("does not let a preference wreck the balance of hours", () => {
+    // Teresa disliking Tuesdays is not enough to justify moving her share onto
+    // Noriko, who is already the most loaded. Preferences are a tie-breaker,
+    // not a veto — this is the behaviour that keeps them from backfiring.
+    const base = buildInput();
+    const teresa = byName(base, "Teresa");
+    const reluctant = base.availability.map((w) =>
+      w.personId === teresa && w.weekday === 2
+        ? { ...w, preference: "avoid" as const }
+        : w,
+    );
+    const after = solve({ ...base, availability: reluctant });
+
+    expect(after.workloads.find((w) => w.personId === teresa)!.daysWorked).toContain(2);
+    const noriko = byName(base, "Noriko");
+    expect(
+      after.workloads.find((w) => w.personId === noriko)!.totalMinutes,
+    ).toBe(solve(base).workloads.find((w) => w.personId === noriko)!.totalMinutes);
+  });
+
+  it("never lets a preference override coverage", () => {
+    // Noriko is the only person who can open. Even if she hates every minute of
+    // it, the shifts still have to be covered.
+    const base = buildInput();
+    const noriko = byName(base, "Noriko");
+    const reluctant = base.availability.map((w) =>
+      w.personId === noriko ? { ...w, preference: "avoid" as const } : w,
+    );
+    const after = solve({ ...base, availability: reluctant });
+
+    for (const weekday of [1, 2, 4]) {
+      const shift = shiftOf(base, "Arrival", weekday);
+      expect(
+        after.assignments.map((a) => a.shiftId),
+        `arrival weekday ${weekday}`,
+      ).toContain(shift.id);
+    }
+    // Same critical gaps as before: preferences changed nothing structural.
+    expect(after.gaps.filter((g) => g.critical)).toHaveLength(1);
+  });
+
+  it("treats a preference as soft and never as permission", () => {
+    // An "avoid" window is still a window: the person remains schedulable.
+    const base = buildInput();
+    const all = base.availability.map((w) => ({ ...w, preference: "avoid" as const }));
+    const after = solve({ ...base, availability: all });
+    expect(after.assignments.length).toBe(solve(base).assignments.length);
   });
 
   it("rebalances when one more person can open on Mondays", () => {

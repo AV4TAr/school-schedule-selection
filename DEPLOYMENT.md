@@ -51,6 +51,16 @@ HOSTNAME=127.0.0.1 PORT=3000 npm start
 Visit `http://127.0.0.1:3000`. On first run the app creates `data/schedule.db`,
 applies migrations and seeds the roster.
 
+To prepare the database ahead of first request — useful when you want the app to
+answer immediately, or to check migrations apply cleanly before going live:
+
+```bash
+npm run db:seed -- --generate     # seed if empty, then solve the first schedule
+```
+
+It is safe to re-run: without `--reset` it will not touch a database that
+already has data.
+
 **`HOSTNAME=127.0.0.1` matters.** It binds to loopback only, so the app is
 unreachable from the network except through the proxy running on the same
 machine. Without it, Next.js listens on all interfaces.
@@ -143,11 +153,13 @@ launchctl stop com.school.schedule
 git pull
 npm ci
 npm run build
+npm run db:seed          # applies any new migrations; won't touch existing data
 launchctl start com.school.schedule
 ```
 
-Migrations apply automatically on the first request after start. **Back up
-first** — migrations are not reversible.
+Migrations also apply automatically on the first request after start; running
+`db:seed` first just surfaces a migration failure before the service comes back
+up. **Back up first** — migrations are not reversible.
 
 ## Health check
 

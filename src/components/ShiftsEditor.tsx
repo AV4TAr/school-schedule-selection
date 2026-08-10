@@ -2,115 +2,132 @@
 
 import { useMemo, useState, useTransition } from "react";
 
-import { createShift, deleteShift, updateShift } from "@/app/actions";
+import {
+  createShift,
+  deleteShiftGroup,
+  setShiftWeekday,
+  updateShiftGroup,
+} from "@/app/actions";
 import { TimeField } from "@/components/PeopleEditor";
 import { useI18n } from "@/lib/i18n/context";
 import { SCHOOL_WEEKDAYS, type Shift, type Weekday } from "@/lib/types";
 
-export function ShiftsEditor({ shifts }: { shifts: Shift[] }) {
-  const { t, weekday } = useI18n();
-  const [pending, startTransition] = useTransition();
+/**
+ * The same slot usually runs on several weekdays with identical times. Editing
+ * it once per day was both repetitive and easy to get inconsistent, so the
+ * screen groups by (name, start, end) and exposes the days as toggles.
+ */
+interface ShiftGroup {
+  key: string;
+  ids: number[];
+  name: string;
+  startMin: number;
+  endMin: number;
+  requiredMin: number;
+  requiredIdeal: number;
+  active: boolean;
+  weekdays: Set<Weekday>;
+}
 
-  const byWeekday = useMemo(() => {
-    const map = new Map<Weekday, Shift[]>();
-    for (const shift of shifts) {
-      const list = map.get(shift.weekday);
-      if (list) list.push(shift);
-      else map.set(shift.weekday, [shift]);
+function groupShifts(shifts: Shift[]): ShiftGroup[] {
+  const groups = new Map<string, ShiftGroup>();
+  for (const shift of shifts) {
+    const key = `${shift.name}|${shift.startMin}|${shift.endMin}`;
+    let group = groups.get(key);
+    if (!group) {
+      group = {
+        key,
+        ids: [],
+        name: shift.name,
+        startMin: shift.startMin,
+        endMin: shift.endMin,
+        requiredMin: shift.requiredMin,
+        requiredIdeal: shift.requiredIdeal,
+        active: shift.active,
+        weekdays: new Set(),
+      };
+      groups.set(key, group);
     }
-    for (const list of map.values()) list.sort((a, b) => a.startMin - b.startMin);
-    return map;
-  }, [shifts]);
+    group.ids.push(shift.id);
+    group.weekdays.add(shift.weekday);
+  }
+  return [...groups.values()].sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin);
+}
 
-  // Days that already have shifts first; empty days still shown, so a new
-  // shift can be added to any weekday.
-  const days = SCHOOL_WEEKDAYS.filter((d) => (byWeekday.get(d)?.length ?? 0) > 0).concat(
-    SCHOOL_WEEKDAYS.filter((d) => (byWeekday.get(d)?.length ?? 0) === 0),
-  );
+export function ShiftsEditor({ shifts }: { shifts: Shift[] }) {
+  const { t } = useI18n();
+  const [pending, startTransition] = useTransition();
+  const groups = useMemo(() => groupShifts(shifts), [shifts]);
 
   return (
-    <div className="space-y-6">
-      <header>
-        <h1 className="page-title">{t.shifts.title}</h1>
-        <p className="mt-1 text-base text-muted">{t.shifts.subtitle}</p>
+    <div className="space-y-5">
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="page-title">{t.shifts.title}</h1>
+          <p className="mt-1 text-base text-muted">{t.shifts.subtitle}</p>
+        </div>
+        <button
+          type="button"
+          className="btn btn-primary"
+          title={t.hints.addShift}
+          disabled={pending}
+          onClick={() =>
+            startTransition(
+              () =>
+                void createShift({
+                  name: t.shifts.newShift,
+                  weekday: 1,
+                  startMin: 12 * 60,
+                  endMin: 13 * 60,
+                  requiredMin: 1,
+                  requiredIdeal: 1,
+                }),
+            )
+          }
+        >
+          + {t.shifts.addShift}
+        </button>
       </header>
 
-      {shifts.length === 0 && (
+      {groups.length === 0 ? (
         <p className="card px-6 py-16 text-center text-base text-muted">
           {t.shifts.emptyState}
         </p>
+      ) : (
+        <div className="space-y-3">
+          {groups.map((group) => (
+            <ShiftGroupCard
+              key={group.key}
+              group={group}
+              pending={pending}
+              run={startTransition}
+            />
+          ))}
+        </div>
       )}
 
-      <div className="space-y-3">
-        {days.map((day) => {
-          const list = byWeekday.get(day) ?? [];
-          return (
-            <section key={day} className="card overflow-hidden">
-              <div className="flex items-center gap-2.5 border-b border-line bg-raised/50 px-4 py-2.5">
-                <h2 className="text-sm font-semibold">{weekday(day)}</h2>
-                <span className="pill pill-neutral">{list.length}</span>
-                <button
-                  type="button"
-                  className="btn btn-sm ml-auto"
-                  disabled={pending}
-                  onClick={() =>
-                    startTransition(
-                      () =>
-                        void createShift({
-                          name: t.shifts.newShift,
-                          weekday: day,
-                          startMin: 12 * 60,
-                          endMin: 13 * 60,
-                          requiredMin: 1,
-                          requiredIdeal: 1,
-                        }),
-                    )
-                  }
-                >
-                  + {t.shifts.addShift}
-                </button>
-              </div>
-
-              {list.length === 0 ? (
-                <p className="px-4 py-4 text-base text-faint">{t.common.none}</p>
-              ) : (
-                <ul className="divide-y divide-line">
-                  {list.map((shift) => (
-                    <ShiftRowEditor
-                      key={shift.id}
-                      shift={shift}
-                      pending={pending}
-                      run={startTransition}
-                    />
-                  ))}
-                </ul>
-              )}
-            </section>
-          );
-        })}
-      </div>
+      <p className="text-xs text-faint">{t.shifts.groupHint}</p>
     </div>
   );
 }
 
-function ShiftRowEditor({
-  shift,
+function ShiftGroupCard({
+  group,
   pending,
   run,
 }: {
-  shift: Shift;
+  group: ShiftGroup;
   pending: boolean;
   run: (fn: () => void) => void;
 }) {
-  const { t } = useI18n();
-  const [name, setName] = useState(shift.name);
+  const { t, weekday, range } = useI18n();
+  const [name, setName] = useState(group.name);
 
-  const patch = (changes: Partial<Shift>) => {
-    const next = { ...shift, ...changes };
+  const patch = (changes: Partial<ShiftGroup>) => {
+    const next = { ...group, ...changes };
     run(() =>
-      void updateShift(shift.id, {
+      void updateShiftGroup(group.ids, {
         name: next.name,
-        weekday: next.weekday,
         startMin: next.startMin,
         endMin: next.endMin,
         requiredMin: next.requiredMin,
@@ -120,92 +137,136 @@ function ShiftRowEditor({
     );
   };
 
+  const onlyDay = group.weekdays.size <= 1;
+
   return (
-    <li
-      className={`flex flex-wrap items-end gap-3 px-4 py-3 ${shift.active ? "" : "opacity-60"}`}
-    >
-      <div className="w-44">
-        <label className="label">{t.common.name}</label>
-        <input
-          className="field"
-          value={name}
+    <section className={`card overflow-hidden ${group.active ? "" : "opacity-60"}`}>
+      <div className="flex flex-wrap items-center gap-3 border-b border-line bg-raised/50 px-4 py-2.5">
+        <h2 className="text-sm font-semibold">{group.name}</h2>
+        <span className="num text-xs text-faint">
+          {range(group.startMin, group.endMin)}
+        </span>
+        <span className="pill">
+          {group.weekdays.size} {t.shifts.days}
+        </span>
+        <button
+          type="button"
+          className="btn btn-ghost btn-danger btn-sm ml-auto"
+          title={t.hints.deleteShift}
           disabled={pending}
-          onChange={(e) => setName(e.target.value)}
-          onBlur={() => {
-            const trimmed = name.trim();
-            if (!trimmed || trimmed === shift.name) return setName(shift.name);
-            patch({ name: trimmed });
+          onClick={() => {
+            if (confirm(t.common.confirmDelete)) run(() => void deleteShiftGroup(group.ids));
           }}
-          onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-        />
+        >
+          {t.shifts.deleteShift}
+        </button>
       </div>
 
-      <div>
-        <label className="label">{t.common.from}</label>
-        <TimeField
-          value={shift.startMin}
-          disabled={pending}
-          onCommit={(startMin) => patch({ startMin })}
-        />
-      </div>
+      {/* Labels appear once per shift, not once per weekday. */}
+      <div className="flex flex-wrap items-end gap-3 px-4 py-3">
+        <div className="w-44">
+          <label className="label">{t.common.name}</label>
+          <input
+            className="field"
+            value={name}
+            disabled={pending}
+            onChange={(e) => setName(e.target.value)}
+            onBlur={() => {
+              const trimmed = name.trim();
+              if (!trimmed || trimmed === group.name) return setName(group.name);
+              patch({ name: trimmed });
+            }}
+            onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+          />
+        </div>
 
-      <div>
-        <label className="label">{t.common.to}</label>
-        <TimeField
-          value={shift.endMin}
-          disabled={pending}
-          onCommit={(endMin) => patch({ endMin })}
-        />
-      </div>
+        <div>
+          <label className="label">{t.common.from}</label>
+          <TimeField
+            value={group.startMin}
+            disabled={pending}
+            onCommit={(startMin) => patch({ startMin })}
+          />
+        </div>
 
-      <div className="w-20">
-        <label className="label" title={t.shifts.requiredMinHint}>
-          {t.shifts.requiredMin}
+        <div>
+          <label className="label">{t.common.to}</label>
+          <TimeField
+            value={group.endMin}
+            disabled={pending}
+            onCommit={(endMin) => patch({ endMin })}
+          />
+        </div>
+
+        <div className="w-20">
+          <label className="label" title={t.shifts.requiredMinHint}>
+            {t.shifts.requiredMin}
+          </label>
+          <input
+            type="number"
+            min={0}
+            className="field num text-right"
+            value={group.requiredMin}
+            disabled={pending}
+            onChange={(e) => patch({ requiredMin: Number(e.target.value) })}
+          />
+        </div>
+
+        <div className="w-20">
+          <label className="label" title={t.shifts.requiredIdealHint}>
+            {t.shifts.requiredIdeal}
+          </label>
+          <input
+            type="number"
+            min={0}
+            className="field num text-right"
+            value={group.requiredIdeal}
+            disabled={pending}
+            onChange={(e) => patch({ requiredIdeal: Number(e.target.value) })}
+          />
+        </div>
+
+        <div>
+          <label className="label">{t.shifts.runsOn}</label>
+          <div className="flex gap-1">
+            {SCHOOL_WEEKDAYS.map((day) => {
+              const on = group.weekdays.has(day);
+              // Refuse to empty the group — deleting is the explicit action.
+              const locked = on && onlyDay;
+              return (
+                <button
+                  key={day}
+                  type="button"
+                  aria-pressed={on}
+                  disabled={pending || locked}
+                  title={locked ? t.shifts.lastDayHint : weekday(day)}
+                  onClick={() => run(() => void setShiftWeekday(group.ids, day, !on))}
+                  className={`h-8 w-9 rounded-[var(--r-sm)] border text-2xs font-semibold transition ${
+                    on
+                      ? "border-accent bg-accent-soft text-accent"
+                      : "border-line bg-surface text-faint hover:border-line-strong hover:text-muted"
+                  } ${locked ? "cursor-not-allowed opacity-70" : ""}`}
+                >
+                  {weekday(day, "short")}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <label
+          className="mb-2 flex cursor-pointer items-center gap-1.5 text-base text-muted"
+          title={t.hints.shiftActive}
+        >
+          <input
+            type="checkbox"
+            checked={group.active}
+            disabled={pending}
+            onChange={(e) => patch({ active: e.target.checked })}
+          />
+          {t.common.active}
         </label>
-        <input
-          type="number"
-          min={0}
-          className="field num text-right"
-          value={shift.requiredMin}
-          disabled={pending}
-          onChange={(e) => patch({ requiredMin: Number(e.target.value) })}
-        />
       </div>
-
-      <div className="w-20">
-        <label className="label" title={t.shifts.requiredIdealHint}>
-          {t.shifts.requiredIdeal}
-        </label>
-        <input
-          type="number"
-          min={0}
-          className="field num text-right"
-          value={shift.requiredIdeal}
-          disabled={pending}
-          onChange={(e) => patch({ requiredIdeal: Number(e.target.value) })}
-        />
-      </div>
-
-      <label className="mb-2 flex cursor-pointer items-center gap-1.5 text-base text-muted">
-        <input
-          type="checkbox"
-          checked={shift.active}
-          disabled={pending}
-          onChange={(e) => patch({ active: e.target.checked })}
-        />
-        {t.common.active}
-      </label>
-
-      <button
-        type="button"
-        className="btn btn-ghost btn-danger btn-sm mb-1.5 ml-auto"
-        disabled={pending}
-        onClick={() => {
-          if (confirm(t.common.confirmDelete)) run(() => void deleteShift(shift.id));
-        }}
-      >
-        {t.shifts.deleteShift}
-      </button>
-    </li>
+    </section>
   );
 }

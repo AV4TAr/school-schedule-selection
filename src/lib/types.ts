@@ -21,8 +21,18 @@ export interface Person {
 }
 
 /**
+ * How willing someone is to work a stretch of time. This is deliberately only
+ * about *soft* feeling: being unable to work is expressed by having no window
+ * at all, so a preference can never be traded away into an impossible shift.
+ */
+export type Preference = "preferred" | "neutral" | "avoid";
+
+export const PREFERENCES: Preference[] = ["preferred", "neutral", "avoid"];
+
+/**
  * One continuous window a person can work on a given weekday. A person may have
- * several windows per day (e.g. early morning and afternoon with a break).
+ * several windows per day (e.g. early morning and afternoon with a break), and
+ * each carries its own preference.
  */
 export interface AvailabilityWindow {
   id: number;
@@ -30,6 +40,7 @@ export interface AvailabilityWindow {
   weekday: Weekday;
   startMin: number;
   endMin: number;
+  preference: Preference;
 }
 
 export interface Shift {
@@ -66,6 +77,10 @@ export interface SolverWeights {
   idleTime: number;
   /** Bonus (negative cost) per person who gets a full day off. */
   dayOff: number;
+  /** Bonus per minute worked inside a window the person marked "preferred". */
+  preferred: number;
+  /** Cost per minute worked inside a window the person marked "avoid". */
+  avoid: number;
 }
 
 export interface SolverSettings {
@@ -92,6 +107,10 @@ export const DEFAULT_WEIGHTS: SolverWeights = {
   fairness: 100,
   idleTime: 25,
   dayOff: 400,
+  // Per minute, so a 95-minute shift is worth ~475 either way: enough to steer
+  // a genuine choice, far too small to outrank coverage.
+  preferred: 5,
+  avoid: 8,
 };
 
 export const DEFAULT_SETTINGS: SolverSettings = {
@@ -120,6 +139,10 @@ export interface PersonWorkload {
   daysOff: Weekday[];
   /** Minutes spent waiting between shifts. */
   idleMinutes: number;
+  /** Minutes worked inside windows the person marked "preferred". */
+  preferredMinutes: number;
+  /** Minutes worked inside windows the person marked "avoid". */
+  avoidedMinutes: number;
 }
 
 export interface SolveResult {

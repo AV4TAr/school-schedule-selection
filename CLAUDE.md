@@ -15,6 +15,9 @@ npm run typecheck                        # tsc --noEmit
 npm run lint                             # eslint
 npm run build                            # production build
 npm run db:generate                      # regenerate drizzle/ after editing schema.ts
+npm run db:seed                          # migrate + seed if empty (idempotent)
+npm run db:seed -- --reset --generate    # wipe, reseed, solve a schedule
+npm run design:build                     # rebuild design-system/dist previews
 ```
 
 `DATABASE_PATH` overrides the SQLite location (`:memory:` works) — useful for
@@ -61,6 +64,11 @@ page modules in parallel build workers that otherwise race for the write lock.
 `bootstrap.ts` runs migrations and seeds on first use; every query in
 `queries.ts` calls `ensureDatabase()` first.
 
+The Shifts screen groups shifts by `(name, start, end)` and edits the whole
+group at once, with weekday toggles (`updateShiftGroup`, `setShiftWeekday`,
+`deleteShiftGroup`). The per-shift actions still exist and still work; the
+grouped ones are what the UI uses.
+
 ### Data flow
 
 Server components in `src/app/*/page.tsx` read synchronously via `queries.ts`
@@ -72,6 +80,23 @@ Pinned assignments are the manual-override mechanism: `generateSchedule` reads
 the pinned rows back out and feeds them to the solver as constraints, so user
 locks survive regeneration. Pins the solver cannot honour come back in
 `droppedPins` rather than being silently applied or dropped.
+
+### Preferences vs. availability
+
+`AvailabilityWindow.preference` is `preferred | neutral | avoid`. **Inability to
+work is the absence of a window, never a preference value** — that separation is
+what stops a soft signal from ever being traded into an impossible assignment.
+Preserve it if you extend the model.
+
+Preference is priced per minute worked (`weights.preferred`, `weights.avoid`) so
+a long disliked shift costs more than a short one, and both sit far below the
+understaffing weights. A preference is a tie-breaker, not a veto: the tests lock
+in that Teresa disliking Tuesdays does *not* shift her hours onto the already
+overloaded Noriko.
+
+When several windows cover a shift, `coveringWindow` picks the most positive
+one. `analyze.ts` duplicates that rule for stored assignments — change both
+together or the screen will disagree with the solver.
 
 ### Theming
 

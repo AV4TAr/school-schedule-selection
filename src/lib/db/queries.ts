@@ -10,6 +10,7 @@ import {
   type Assignment,
   type AvailabilityWindow,
   type Person,
+  type Preference,
   type Shift,
   type SolverSettings,
   type Weekday,
@@ -43,6 +44,7 @@ export function getAvailability(): AvailabilityWindow[] {
       weekday: row.weekday as Weekday,
       startMin: row.startMin,
       endMin: row.endMin,
+      preference: row.preference as Preference,
     }));
 }
 

@@ -29,6 +29,8 @@ export function SettingsForm({ initial }: { initial: SolverSettings }) {
     { key: "fairness", label: t.settings.fairness },
     { key: "idleTime", label: t.settings.idleTime },
     { key: "dayOff", label: t.settings.dayOff },
+    { key: "preferred", label: t.settings.preferred },
+    { key: "avoid", label: t.settings.avoid },
   ];
 
   return (
@@ -49,6 +51,7 @@ export function SettingsForm({ initial }: { initial: SolverSettings }) {
               type="button"
               onClick={() => setLocale(code)}
               aria-pressed={locale === code}
+              title={t.hints.language}
               className={`btn ${locale === code ? "btn-primary" : ""}`}
             >
               {LOCALE_NAMES[code]}
@@ -106,6 +109,7 @@ export function SettingsForm({ initial }: { initial: SolverSettings }) {
         <button
           type="button"
           className="btn"
+          title={t.hints.resetSettings}
           disabled={pending}
           onClick={() => save(DEFAULT_SETTINGS)}
         >

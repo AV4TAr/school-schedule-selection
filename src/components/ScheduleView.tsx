@@ -59,6 +59,7 @@ export function ScheduleView({
             <button
               type="button"
               className="btn"
+              title={t.hints.clearPins}
               disabled={pending}
               onClick={() => startTransition(() => void clearPins())}
             >
@@ -66,12 +67,13 @@ export function ScheduleView({
               <span className="pill pill-neutral">{pinnedCount}</span>
             </button>
           )}
-          <Link className="btn" href="/print">
+          <Link className="btn" href="/print" title={t.hints.print}>
             {t.nav.print}
           </Link>
           <button
             type="button"
             className="btn btn-primary"
+            title={t.hints.generate}
             disabled={pending}
             onClick={() => startTransition(() => void generateSchedule())}
           >
@@ -90,6 +92,7 @@ export function ScheduleView({
           <button
             type="button"
             className="btn btn-primary"
+            title={t.hints.generate}
             disabled={pending}
             onClick={() => startTransition(() => void generateSchedule())}
           >
@@ -155,7 +158,7 @@ export function ScheduleView({
                                 disabled={pending}
                                 data-person={hueOf.get(a.personId) ?? 0}
                                 data-pinned={a.pinned}
-                                title={a.pinned ? t.schedule.unpin : t.schedule.pin}
+                                title={a.pinned ? t.hints.unpinChip : t.hints.pinChip}
                                 onClick={() =>
                                   startTransition(
                                     () => void togglePin(shift.id, a.personId),
@@ -220,6 +223,8 @@ export function ScheduleView({
               days: t.schedule.daysWorked,
               idle: t.schedule.idle,
               idleHint: t.schedule.idleHint,
+              preferredMetHint: t.schedule.preferredMetHint,
+              avoidedWorkedHint: t.schedule.avoidedWorkedHint,
               fairShare: t.schedule.fairShare,
               inactive: t.common.inactive,
             }}
@@ -329,13 +334,23 @@ function WorkloadPanel({
                   </span>
                 </div>
 
-                <div className="num flex gap-4 text-2xs text-faint">
+                <div className="num flex items-center gap-3 text-2xs text-faint">
                   <span>
                     {labels.days} {w.daysWorked.length}
                   </span>
                   <span title={labels.idleHint}>
                     {labels.idle} {formatDuration(w.idleMinutes)}
                   </span>
+                  {w.preferredMinutes > 0 && (
+                    <span className="pill pill-ok" title={labels.preferredMetHint}>
+                      ♥ {formatDuration(w.preferredMinutes)}
+                    </span>
+                  )}
+                  {w.avoidedMinutes > 0 && (
+                    <span className="pill pill-warn" title={labels.avoidedWorkedHint}>
+                      ✕ {formatDuration(w.avoidedMinutes)}
+                    </span>
+                  )}
                 </div>
               </div>
             );

@@ -18,18 +18,25 @@ export function ensureDatabase() {
   if (ready) return;
   migrate(db, { migrationsFolder: path.join(process.cwd(), "drizzle") });
 
-  const existing = db.select({ id: people.id }).from(people).limit(1).all();
-  if (existing.length === 0) seed();
+  if (isEmpty()) seedDatabase();
 
   ready = true;
 }
 
-function seed() {
+/** True when no staff exist yet — the signal for a fresh database. */
+export function isEmpty(): boolean {
+  return db.select({ id: people.id }).from(people).limit(1).all().length === 0;
+}
+
+/** Insert the starting roster and shifts. Assumes the tables are empty. */
+export function seedDatabase() {
   db.transaction((tx) => {
     for (const person of SEED_PEOPLE) {
       const [row] = tx.insert(people).values({ name: person.name }).returning().all();
       for (const w of person.windows) {
-        tx.insert(availability).values({ personId: row.id, ...w }).run();
+        tx.insert(availability)
+          .values({ personId: row.id, ...w, preference: w.preference ?? "neutral" })
+          .run();
       }
     }
 

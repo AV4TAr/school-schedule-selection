@@ -1,0 +1,1 @@
+ALTER TABLE `availability` ADD `preference` text DEFAULT 'neutral' NOT NULL;

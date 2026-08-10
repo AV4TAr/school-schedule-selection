@@ -22,16 +22,28 @@ npm test             # solver tests
 npm run typecheck
 npm run lint
 npm run build && npm start   # production mode
-npm run db:generate  # regenerate migrations after editing src/lib/db/schema.ts
 ```
+
+### Database scripts
+
+```bash
+npm run db:seed                 # seed only if the database is empty (safe, idempotent)
+npm run db:seed -- --generate   # ...and solve the first schedule so the app opens with one
+npm run db:seed -- --reset      # WIPE everything and reseed from src/lib/db/seed-data.ts
+npm run db:generate             # regenerate migrations after editing src/lib/db/schema.ts
+```
+
+Migrations always run first, so `npm run db:seed` is also how you bring an
+existing database up to date without starting the app. `--reset` is destructive
+and is not covered by the in-app undo.
 
 ## Pages
 
 | Page | What it does |
 | --- | --- |
 | **Schedule** | Generates the week, flags coverage gaps, shows hours per person. Click a name to 🔒 lock them into a shift; locked assignments are kept on the next generate. |
-| **Staff** | People and their availability windows. |
-| **Shifts** | The slots needing supervision: day, times, minimum and preferred headcount. |
+| **Staff** | People, their availability windows, and how they feel about each one. |
+| **Shifts** | The slots needing supervision: times, headcount, and which weekdays they run on. |
 | **Settings** | The hard rules (max wait between shifts, tolerated overlap) and the solver's priorities. |
 | **Print view** | A clean by-shift and by-person grid for printing or sharing. |
 
@@ -40,10 +52,39 @@ Across every page: a **light/dark/system** theme toggle (light by default) and
 Undo works by restoring a full snapshot taken before each change, so it reverses
 any action, including a whole schedule regeneration.
 
+### The Generate button
+
+**Generate / Regenerate** re-solves the whole week from scratch: it reads the
+current people, availability, shifts and settings, feeds any 🔒 locked
+assignments back in as hard constraints, then **replaces every assignment** with
+the result. Locks survive; everything else is recomputed.
+
+It is the only thing that pushes a change into the schedule — editing someone's
+availability does not reshuffle the week on its own. The solver is
+deterministic, so pressing it twice on unchanged data gives the identical
+schedule, and one press is always undoable.
+
 ## How the solver works
 
 Times are stored as minutes since midnight, so a schedule is a recurring weekly
 template with no dates or timezones involved.
+
+### Hard rules vs. preferences
+
+These are two different things, and the difference is deliberate:
+
+- **Cannot work** is the *absence* of an availability window. It is a hard
+  constraint — no weight, no trade-off, the solver simply cannot use that time.
+- **Preference** is a property *of* a window: `prefers`, `can work`, or
+  `rather not`. It is soft. It breaks ties and nudges the schedule, but it never
+  overrides coverage, and it will not be allowed to wreck a fair split of hours.
+
+So marking every hour as "rather not" changes nothing about who *can* be
+scheduled — to rule a time out, remove the window.
+
+Preferences attach to a whole window. To express "I can work 9–1:15 but would
+rather not do recess", split it into two windows. If windows on the same day
+overlap, the most positive preference wins and the Staff page says so.
 
 **Hard constraints** — never violated:
 
@@ -63,6 +104,7 @@ template with no dates or timezones involved.
 3. Even out weekly hours between people.
 4. Minimise time spent waiting between shifts.
 5. Give people a day off.
+6. Honour preferred hours and stay out of disliked ones.
 
 The weights in Settings are tiered by orders of magnitude so the ranking can't
 invert — no amount of fairness buys away a body on a short shift.

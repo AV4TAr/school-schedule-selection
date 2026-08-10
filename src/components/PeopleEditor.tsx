@@ -13,9 +13,11 @@ import {
 import { useI18n } from "@/lib/i18n/context";
 import { parseTime, toTimeInput } from "@/lib/time";
 import {
+  PREFERENCES,
   SCHOOL_WEEKDAYS,
   type AvailabilityWindow,
   type Person,
+  type Preference,
   type Weekday,
 } from "@/lib/types";
 
@@ -54,6 +56,7 @@ export function PeopleEditor({ people, availability }: Props) {
           <button
             type="button"
             className="btn btn-primary"
+            title={t.hints.addPerson}
             disabled={pending || !newName.trim()}
             onClick={submitNew}
           >
@@ -82,6 +85,7 @@ export function PeopleEditor({ people, availability }: Props) {
       )}
 
       <p className="text-xs text-faint">{t.people.windowHint}</p>
+      <p className="text-xs text-faint">{t.people.preferenceHint}</p>
     </div>
   );
 }
@@ -99,8 +103,20 @@ function PersonCard({
   pending: boolean;
   run: (fn: () => void) => void;
 }) {
-  const { t, weekday } = useI18n();
+  const { t, fmt, weekday } = useI18n();
   const [name, setName] = useState(person.name);
+
+  // Overlaps make the effective preference ambiguous, so say so rather than
+  // silently resolving it.
+  const overlapping = windows.some((a) =>
+    windows.some(
+      (b) =>
+        a.id !== b.id &&
+        a.weekday === b.weekday &&
+        a.startMin < b.endMin &&
+        b.startMin < a.endMin,
+    ),
+  );
 
   const commitName = () => {
     const trimmed = name.trim();
@@ -127,7 +143,7 @@ function PersonCard({
 
         <label
           className="flex cursor-pointer items-center gap-1.5 text-base text-muted"
-          title={t.people.inactiveHint}
+          title={t.hints.personActive}
         >
           <input
             type="checkbox"
@@ -140,13 +156,16 @@ function PersonCard({
           {t.common.active}
         </label>
 
-        <span className="pill pill-neutral">
-          {windows.length} {t.people.availability.toLowerCase()}
+        <span className="pill">
+          {windows.length === 1
+            ? t.people.windowCountOne
+            : fmt(t.people.windowCountMany, { count: windows.length })}
         </span>
 
         <button
           type="button"
           className="btn btn-ghost btn-danger ml-auto"
+          title={t.hints.deletePerson}
           disabled={pending}
           onClick={() => {
             if (confirm(t.common.confirmDelete)) run(() => void deletePerson(person.id));
@@ -157,6 +176,8 @@ function PersonCard({
       </div>
 
       <div className="space-y-1.5 px-4 py-3">
+        {overlapping && <p className="pill pill-warn">{t.people.overlapWarning}</p>}
+
         {windows.length === 0 ? (
           <p className="pill pill-warn">{t.people.noWindows}</p>
         ) : (
@@ -194,11 +215,20 @@ function PersonCard({
                   onCommit={(endMin) => run(() => void updateAvailability(w.id, { endMin }))}
                 />
 
+                <PreferencePicker
+                  value={w.preference}
+                  disabled={pending}
+                  onChange={(preference) =>
+                    run(() => void updateAvailability(w.id, { preference }))
+                  }
+                />
+
                 <button
                   type="button"
                   className="btn btn-ghost btn-danger btn-sm"
                   disabled={pending}
                   aria-label={t.common.delete}
+                  title={t.hints.deleteWindow}
                   onClick={() => run(() => void deleteAvailability(w.id))}
                 >
                   ✕
@@ -211,6 +241,7 @@ function PersonCard({
         <button
           type="button"
           className="btn btn-sm mt-1"
+          title={t.hints.addWindow}
           disabled={pending}
           onClick={() =>
             run(() => void createAvailability(person.id, 1, 8 * 60, 13 * 60 + 15))
@@ -255,5 +286,57 @@ export function TimeField({
         if (parsed !== value) onCommit(parsed);
       }}
     />
+  );
+}
+
+/**
+ * Three-way soft preference for one availability window. Deliberately separate
+ * from *whether* the person can work: removing the window is how you say no.
+ */
+function PreferencePicker({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: Preference;
+  disabled?: boolean;
+  onChange: (value: Preference) => void;
+}) {
+  const { t } = useI18n();
+  const tone: Record<Preference, string> = {
+    preferred: "border-ok-line bg-ok-soft text-ok",
+    neutral: "border-line bg-raised text-muted",
+    avoid: "border-warn-line bg-warn-soft text-warn",
+  };
+  const icon: Record<Preference, string> = { preferred: "♥", neutral: "•", avoid: "✕" };
+
+  return (
+    <div
+      role="group"
+      aria-label={t.people.preference}
+      className="flex items-center gap-0.5 rounded-[var(--r-sm)] border border-line p-0.5"
+    >
+      {PREFERENCES.map((option) => {
+        const on = value === option;
+        return (
+          <button
+            key={option}
+            type="button"
+            disabled={disabled}
+            aria-pressed={on}
+            title={t.people[`${option}Full` as const]}
+            onClick={() => onChange(option)}
+            className={`rounded-[3px] border px-1.5 py-0.5 text-2xs font-medium transition ${
+              on ? tone[option] : "border-transparent text-faint hover:text-foreground"
+            }`}
+          >
+            <span aria-hidden className="mr-1">
+              {icon[option]}
+            </span>
+            {t.people[option]}
+          </button>
+        );
+      })}
+    </div>
   );
 }

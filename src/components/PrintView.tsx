@@ -50,10 +50,15 @@ export function PrintView({ people, shifts, availability, assignments, weekdays 
           </p>
         </div>
         <div className="no-print flex gap-2">
-          <Link className="btn" href="/">
+          <Link className="btn" href="/" title={t.hints.back}>
             {t.common.back}
           </Link>
-          <button type="button" className="btn btn-primary" onClick={() => window.print()}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            title={t.hints.printNow}
+            onClick={() => window.print()}
+          >
             {t.print.print}
           </button>
         </div>

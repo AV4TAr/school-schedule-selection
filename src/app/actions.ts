@@ -17,7 +17,7 @@ import {
 } from "@/lib/db/queries";
 import { popUndo, pushUndo, type UndoLabel } from "@/lib/db/undo";
 import { solve } from "@/lib/solver";
-import type { SolverSettings, Weekday } from "@/lib/types";
+import type { Preference, SolverSettings, Weekday } from "@/lib/types";
 
 function refresh() {
   revalidatePath("/", "layout");
@@ -155,16 +155,24 @@ export async function createAvailability(
   weekday: Weekday,
   startMin: number,
   endMin: number,
+  preference: Preference = "neutral",
 ) {
   if (endMin <= startMin) return;
   pushUndo({ key: "addWindow", params: { person: personName(personId) } });
-  db.insert(availability).values({ personId, weekday, startMin, endMin }).run();
+  db.insert(availability)
+    .values({ personId, weekday, startMin, endMin, preference })
+    .run();
   refresh();
 }
 
 export async function updateAvailability(
   id: number,
-  patch: { weekday?: Weekday; startMin?: number; endMin?: number },
+  patch: {
+    weekday?: Weekday;
+    startMin?: number;
+    endMin?: number;
+    preference?: Preference;
+  },
 ) {
   const row = db.select().from(availability).where(eq(availability.id, id)).get();
   if (!row) return;
@@ -173,7 +181,12 @@ export async function updateAvailability(
 
   pushUndo({ key: "editWindow", params: { person: personName(row.personId) } });
   db.update(availability)
-    .set({ weekday: next.weekday, startMin: next.startMin, endMin: next.endMin })
+    .set({
+      weekday: next.weekday,
+      startMin: next.startMin,
+      endMin: next.endMin,
+      preference: next.preference,
+    })
     .where(eq(availability.id, id))
     .run();
   refresh();
@@ -230,6 +243,92 @@ export async function updateShift(id: number, input: ShiftInput) {
 export async function deleteShift(id: number) {
   pushUndo({ key: "deleteShift", params: { shift: shiftName(id) } });
   db.delete(shifts).where(eq(shifts.id, id)).run();
+  refresh();
+}
+
+/**
+ * The Shifts screen groups the same slot across weekdays into one row, so these
+ * operate on a whole group at once. `ids` is every shift in the group.
+ */
+export async function updateShiftGroup(
+  ids: number[],
+  input: Omit<ShiftInput, "weekday">,
+) {
+  if (ids.length === 0) return;
+  const clean = normaliseShift({ ...input, weekday: 1 });
+  if (!clean) return;
+
+  pushUndo({ key: "editShift", params: { shift: shiftName(ids[0]) } });
+  db.transaction((tx) => {
+    for (const id of ids) {
+      tx.update(shifts)
+        .set({
+          name: clean.name,
+          startMin: clean.startMin,
+          endMin: clean.endMin,
+          requiredMin: clean.requiredMin,
+          requiredIdeal: clean.requiredIdeal,
+          active: clean.active ?? true,
+        })
+        .where(eq(shifts.id, id))
+        .run();
+    }
+  });
+  refresh();
+}
+
+/** Turn one weekday of a shift group on or off. */
+export async function setShiftWeekday(
+  ids: number[],
+  weekday: Weekday,
+  enabled: boolean,
+) {
+  if (ids.length === 0) return;
+  const template = db.select().from(shifts).where(eq(shifts.id, ids[0])).get();
+  if (!template) return;
+
+  const existing = db
+    .select()
+    .from(shifts)
+    .all()
+    .find(
+      (s) =>
+        s.weekday === weekday &&
+        s.name === template.name &&
+        s.startMin === template.startMin &&
+        s.endMin === template.endMin,
+    );
+
+  if (enabled) {
+    if (existing) return;
+    pushUndo({ key: "addShift", params: { shift: template.name } });
+    db.insert(shifts)
+      .values({
+        name: template.name,
+        weekday,
+        startMin: template.startMin,
+        endMin: template.endMin,
+        requiredMin: template.requiredMin,
+        requiredIdeal: template.requiredIdeal,
+        active: template.active,
+      })
+      .run();
+  } else {
+    if (!existing) return;
+    // Never leave a group with no days at all — delete the group instead.
+    if (ids.length <= 1) return;
+    pushUndo({ key: "deleteShift", params: { shift: template.name } });
+    db.delete(shifts).where(eq(shifts.id, existing.id)).run();
+  }
+  refresh();
+}
+
+export async function deleteShiftGroup(ids: number[]) {
+  if (ids.length === 0) return;
+  pushUndo({ key: "deleteShift", params: { shift: shiftName(ids[0]) } });
+  db.transaction((tx) => {
+    for (const id of ids) tx.delete(shifts).where(eq(shifts.id, id)).run();
+  });
   refresh();
 }
 

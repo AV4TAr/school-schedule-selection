@@ -12,6 +12,7 @@ import type {
   CoverageGap,
   Person,
   PersonWorkload,
+  Preference,
   Shift,
   Weekday,
 } from "./types";
@@ -72,7 +73,23 @@ export function analyzeSchedule(
 
     let totalMinutes = 0;
     let idleMinutes = 0;
+    let preferredMinutes = 0;
+    let avoidedMinutes = 0;
     const daysWorked = new Set<Weekday>();
+
+    /** Same rule as the solver: the most positive covering window wins. */
+    const preferenceFor = (shift: Shift): Preference => {
+      const rank: Record<Preference, number> = { preferred: 0, neutral: 1, avoid: 2 };
+      const best = windows
+        .filter(
+          (w) =>
+            w.weekday === shift.weekday &&
+            w.startMin <= shift.startMin &&
+            w.endMin >= shift.endMin,
+        )
+        .sort((a, b) => rank[a.preference] - rank[b.preference])[0];
+      return best?.preference ?? "neutral";
+    };
 
     for (const weekday of [1, 2, 3, 4, 5, 6, 7] as Weekday[]) {
       const dayShifts = mine
@@ -83,13 +100,20 @@ export function analyzeSchedule(
 
       let lastEnd = -1;
       for (const shift of dayShifts) {
+        let worked: number;
         if (lastEnd < 0) {
-          totalMinutes += shift.endMin - shift.startMin;
+          worked = shift.endMin - shift.startMin;
         } else {
           // Overlapping shifts are the same post: count wall-clock time once.
-          totalMinutes += Math.max(0, shift.endMin - Math.max(shift.startMin, lastEnd));
+          worked = Math.max(0, shift.endMin - Math.max(shift.startMin, lastEnd));
           idleMinutes += Math.max(0, shift.startMin - lastEnd);
         }
+        totalMinutes += worked;
+
+        const preference = preferenceFor(shift);
+        if (preference === "preferred") preferredMinutes += worked;
+        else if (preference === "avoid") avoidedMinutes += worked;
+
         lastEnd = Math.max(lastEnd, shift.endMin);
       }
     }
@@ -99,6 +123,8 @@ export function analyzeSchedule(
       personId: person.id,
       totalMinutes,
       idleMinutes,
+      preferredMinutes,
+      avoidedMinutes,
       daysWorked: [...daysWorked].sort((a, b) => a - b),
       daysOff: [...availableDays].filter((d) => !daysWorked.has(d)).sort((a, b) => a - b),
     };

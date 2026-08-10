@@ -4,7 +4,7 @@
  * starting point, not hard-coded behaviour.
  */
 
-import type { Weekday } from "../types";
+import type { Preference, Weekday } from "../types";
 
 const MON: Weekday = 1;
 const TUE: Weekday = 2;
@@ -21,7 +21,12 @@ const NINE_TO_END: [number, number] = [t(9, 0), t(13, 15)];
 
 export interface SeedPerson {
   name: string;
-  windows: { weekday: Weekday; startMin: number; endMin: number }[];
+  windows: {
+    weekday: Weekday;
+    startMin: number;
+    endMin: number;
+    preference?: Preference;
+  }[];
 }
 
 export const SEED_PEOPLE: SeedPerson[] = [

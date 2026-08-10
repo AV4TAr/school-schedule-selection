@@ -28,6 +28,7 @@ import {
   type PersonWorkload,
   type Shift,
   type SolveResult,
+  type Preference,
   type SolverSettings,
   type Weekday,
 } from "./types";
@@ -49,6 +50,10 @@ interface DayPattern {
   minutes: number[];
   /** Waiting minutes between shifts that day, indexed by person. */
   idle: number[];
+  /** Minutes worked in "preferred" windows that day, indexed by person. */
+  preferred: number[];
+  /** Minutes worked in "avoid" windows that day, indexed by person. */
+  avoided: number[];
   /** Understaffing + idle cost. Independent of the rest of the week. */
   localCost: number;
 }
@@ -61,17 +66,30 @@ interface DayPlan {
 }
 
 /**
- * Whether `person` can work the whole of `shift` — a single availability window
- * must cover it end to end. Two adjacent windows do not combine, which is
- * deliberate: a break in the middle of a window means they are unavailable.
+ * The window that lets `person` work the whole of `shift`, or undefined. A
+ * single window must cover it end to end — two adjacent windows do not combine,
+ * which is deliberate: a break in the middle means they are unavailable.
+ *
+ * When several windows qualify, the one the person feels best about wins, so a
+ * "preferred" block is never masked by an overlapping "neutral" one.
  */
+function coveringWindow(
+  shift: Shift,
+  windows: AvailabilityWindow[],
+): AvailabilityWindow | undefined {
+  const rank: Record<string, number> = { preferred: 0, neutral: 1, avoid: 2 };
+  return windows
+    .filter(
+      (w) =>
+        w.weekday === shift.weekday &&
+        w.startMin <= shift.startMin &&
+        w.endMin >= shift.endMin,
+    )
+    .sort((a, b) => (rank[a.preference] ?? 1) - (rank[b.preference] ?? 1))[0];
+}
+
 function isAvailable(shift: Shift, windows: AvailabilityWindow[]): boolean {
-  return windows.some(
-    (w) =>
-      w.weekday === shift.weekday &&
-      w.startMin <= shift.startMin &&
-      w.endMin >= shift.endMin,
-  );
+  return coveringWindow(shift, windows) !== undefined;
 }
 
 function understaffCost(assigned: number, shift: Shift, settings: SolverSettings): number {
@@ -90,6 +108,8 @@ function enumerateDay(
   shifts: Shift[],
   eligible: number[][],
   pinnedPerShift: number[][],
+  /** Parallel to `eligible`: the preference of each eligible person for that shift. */
+  preferencePerShift: Preference[][],
   peopleCount: number,
   settings: SolverSettings,
 ): DayPlan {
@@ -99,6 +119,8 @@ function enumerateDay(
   const lastEnd = new Array<number>(peopleCount).fill(-1);
   const minutes = new Array<number>(peopleCount).fill(0);
   const idle = new Array<number>(peopleCount).fill(0);
+  const preferredMin = new Array<number>(peopleCount).fill(0);
+  const avoidedMin = new Array<number>(peopleCount).fill(0);
 
   const chosen: number[][] = shifts.map(() => []);
   const best = new Map<string, DayPattern>();
@@ -133,6 +155,8 @@ function enumerateDay(
     prevEnd: number;
     worked: number;
     gapAdded: number;
+    preferredAdded: number;
+    avoidedAdded: number;
   }
   const undoStack: UndoEntry[] = [];
 
@@ -141,18 +165,24 @@ function enumerateDay(
       const entry = undoStack.pop()!;
       idle[entry.person] -= entry.gapAdded;
       minutes[entry.person] -= entry.worked;
+      preferredMin[entry.person] -= entry.preferredAdded;
+      avoidedMin[entry.person] -= entry.avoidedAdded;
       lastEnd[entry.person] = entry.prevEnd;
     }
   }
 
   function record(cost: number) {
-    const key = minutes.join(",");
+    // Two patterns are interchangeable for the weekly objective only if they
+    // agree on minutes *and* on whose preferences were met.
+    const key = `${minutes.join(",")}|${preferredMin.join(",")}|${avoidedMin.join(",")}`;
     const existing = best.get(key);
     if (existing && existing.localCost <= cost) return;
     best.set(key, {
       perShift: chosen.map((c) => c.slice()),
       minutes: minutes.slice(),
       idle: idle.slice(),
+      preferred: preferredMin.slice(),
+      avoided: avoidedMin.slice(),
       localCost: cost,
     });
   }
@@ -166,9 +196,12 @@ function enumerateDay(
     const elig = eligible[shiftIndex];
     const duration = shift.endMin - shift.startMin;
 
+    const prefs = preferencePerShift[shiftIndex];
+
     outer: for (const mask of shiftMasks[shiftIndex]) {
       let applied = 0;
       let addedIdle = 0;
+      let preferenceCost = 0;
       const staff: number[] = [];
 
       for (let i = 0; i < elig.length; i++) {
@@ -196,11 +229,21 @@ function enumerateDay(
           worked = Math.max(0, shift.endMin - Math.max(shift.startMin, prevEnd));
         }
 
+        // Preference is priced per minute actually worked, so a long shift in a
+        // disliked slot costs more than a short one.
+        const preference = prefs[i];
+        const preferredAdded = preference === "preferred" ? worked : 0;
+        const avoidedAdded = preference === "avoid" ? worked : 0;
+        preferenceCost +=
+          avoidedAdded * settings.weights.avoid - preferredAdded * settings.weights.preferred;
+
         idle[p] += gapAdded;
         minutes[p] += worked;
+        preferredMin[p] += preferredAdded;
+        avoidedMin[p] += avoidedAdded;
         addedIdle += gapAdded;
         lastEnd[p] = Math.max(prevEnd, shift.endMin);
-        undoStack.push({ person: p, prevEnd, worked, gapAdded });
+        undoStack.push({ person: p, prevEnd, worked, gapAdded, preferredAdded, avoidedAdded });
         staff.push(p);
         applied++;
       }
@@ -210,7 +253,8 @@ function enumerateDay(
         shiftIndex + 1,
         cost +
           understaffCost(staff.length, shift, settings) +
-          addedIdle * settings.weights.idleTime,
+          addedIdle * settings.weights.idleTime +
+          preferenceCost,
       );
       chosen[shiftIndex] = [];
       rollback(applied);
@@ -286,15 +330,28 @@ export function solve(input: SolveInput): SolveResult {
     const sorted = [...dayShifts].sort(
       (a, b) => a.startMin - b.startMin || a.endMin - b.endMin || a.id - b.id,
     );
-    const eligible = sorted.map((shift) =>
+    const covering = sorted.map((shift) =>
       people
-        .map((p, i) => ({ i, windows: windowsByPerson.get(p.id) ?? [] }))
-        .filter(({ windows }) => isAvailable(shift, windows))
-        .map(({ i }) => i),
+        .map((p, i) => ({ i, window: coveringWindow(shift, windowsByPerson.get(p.id) ?? []) }))
+        .filter((entry): entry is { i: number; window: AvailabilityWindow } =>
+          Boolean(entry.window),
+        ),
+    );
+    const eligible = covering.map((list) => list.map((e) => e.i));
+    const preferencePerShift = covering.map((list) =>
+      list.map((e) => e.window.preference),
     );
     const pinnedPerShift = sorted.map((shift) => pinsByShift.get(shift.id) ?? []);
     plans.push(
-      enumerateDay(weekday, sorted, eligible, pinnedPerShift, peopleCount, settings),
+      enumerateDay(
+        weekday,
+        sorted,
+        eligible,
+        pinnedPerShift,
+        preferencePerShift,
+        peopleCount,
+        settings,
+      ),
     );
   }
 
@@ -377,6 +434,8 @@ export function solve(input: SolveInput): SolveResult {
   const gaps: CoverageGap[] = [];
   const totalMinutes = new Array<number>(peopleCount).fill(0);
   const idleMinutes = new Array<number>(peopleCount).fill(0);
+  const preferredMinutes = new Array<number>(peopleCount).fill(0);
+  const avoidedMinutes = new Array<number>(peopleCount).fill(0);
   const daysWorkedBy = new Map<number, Set<Weekday>>();
 
   const pinnedKeys = new Set(
@@ -413,6 +472,8 @@ export function solve(input: SolveInput): SolveResult {
     for (let p = 0; p < peopleCount; p++) {
       totalMinutes[p] += pattern.minutes[p];
       idleMinutes[p] += pattern.idle[p];
+      preferredMinutes[p] += pattern.preferred[p];
+      avoidedMinutes[p] += pattern.avoided[p];
     }
   }
 
@@ -427,6 +488,8 @@ export function solve(input: SolveInput): SolveResult {
       daysWorked: [...worked].sort((a, b) => a - b),
       daysOff: [...availableDays].filter((d) => !worked.has(d)).sort((a, b) => a - b),
       idleMinutes: idleMinutes[i],
+      preferredMinutes: preferredMinutes[i],
+      avoidedMinutes: avoidedMinutes[i],
     };
   });
 
