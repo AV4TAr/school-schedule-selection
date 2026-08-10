@@ -81,6 +81,18 @@ the pinned rows back out and feeds them to the solver as constraints, so user
 locks survive regeneration. Pins the solver cannot honour come back in
 `droppedPins` rather than being silently applied or dropped.
 
+### One definition of availability
+
+`src/lib/availability.ts` holds `coveringWindow` / `isAvailable` /
+`preferenceFor`. The solver, `analyze.ts` and the manual-assignment action all
+call it. It was duplicated in three places before; if they drift, the screen
+contradicts the solver and a manual edit can smuggle in something the solver
+would never produce. Add call sites, never copies.
+
+`analyze.ts` also reports `violations` — gap and overlap breaches that only a
+manual edit can create. The solver cannot produce them, so their presence always
+means someone overrode something.
+
 ### Preferences vs. availability
 
 `AvailabilityWindow.preference` is `preferred | neutral | avoid`. **Inability to

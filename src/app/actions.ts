@@ -15,6 +15,7 @@ import {
   getSolverSettings,
   saveSolverSettings,
 } from "@/lib/db/queries";
+import { isAvailable } from "@/lib/availability";
 import { popUndo, pushUndo, type UndoLabel } from "@/lib/db/undo";
 import { solve } from "@/lib/solver";
 import type { Preference, SolverSettings, Weekday } from "@/lib/types";
@@ -105,6 +106,66 @@ export async function togglePin(shiftId: number, personId: number) {
   db.update(assignments)
     .set({ pinned: !row.pinned })
     .where(eq(assignments.id, row.id))
+    .run();
+  refresh();
+}
+
+/**
+ * Manually place someone on a shift. Manual placements are pinned by default:
+ * the user just made a decision, and the next Generate must not silently
+ * discard it.
+ *
+ * Refuses people who are not available — that is a hard rule, and the UI only
+ * offers eligible candidates. Overstaffing past the preferred headcount is
+ * allowed: the solver won't do it, but the user is entitled to.
+ */
+export async function addAssignment(shiftId: number, personId: number) {
+  ensureCurrentSchedule();
+
+  const shift = db.select().from(shifts).where(eq(shifts.id, shiftId)).get();
+  if (!shift) return;
+
+  const windows = getAvailability().filter((w) => w.personId === personId);
+  if (!isAvailable({ ...shift, weekday: shift.weekday as Weekday }, windows)) return;
+
+  const existing = db
+    .select()
+    .from(assignments)
+    .where(
+      and(
+        eq(assignments.scheduleId, CURRENT_SCHEDULE_ID),
+        eq(assignments.shiftId, shiftId),
+        eq(assignments.personId, personId),
+      ),
+    )
+    .get();
+  if (existing) return;
+
+  pushUndo({
+    key: "addAssignment",
+    params: { person: personName(personId), shift: shiftName(shiftId) },
+  });
+  db.insert(assignments)
+    .values({ scheduleId: CURRENT_SCHEDULE_ID, shiftId, personId, pinned: true })
+    .run();
+  refresh();
+}
+
+/** Take someone off a shift. */
+export async function removeAssignment(shiftId: number, personId: number) {
+  ensureCurrentSchedule();
+  pushUndo({
+    key: "removeAssignment",
+    params: { person: personName(personId), shift: shiftName(shiftId) },
+  });
+  db.delete(assignments)
+    .where(
+      and(
+        eq(assignments.scheduleId, CURRENT_SCHEDULE_ID),
+        eq(assignments.shiftId, shiftId),
+        eq(assignments.personId, personId),
+      ),
+    )
     .run();
   refresh();
 }

@@ -4,6 +4,7 @@ import {
   getAvailability,
   getPeople,
   getShifts,
+  getSolverSettings,
 } from "@/lib/db/queries";
 import type { Weekday } from "@/lib/types";
 
@@ -22,6 +23,7 @@ export default function SchedulePage() {
       availability={getAvailability()}
       assignments={getAssignments()}
       weekdays={weekdays}
+      settings={getSolverSettings()}
     />
   );
 }

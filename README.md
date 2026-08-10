@@ -41,7 +41,7 @@ and is not covered by the in-app undo.
 
 | Page | What it does |
 | --- | --- |
-| **Schedule** | Generates the week, flags coverage gaps, shows hours per person. Click a name to 🔒 lock them into a shift; locked assignments are kept on the next generate. |
+| **Schedule** | Generates the week, flags coverage gaps, shows hours per person. Add or remove people by hand, and 🔒 lock anyone so the next generate keeps them. |
 | **Staff** | People, their availability windows, and how they feel about each one. |
 | **Shifts** | The slots needing supervision: times, headcount, and which weekdays they run on. |
 | **Settings** | The hard rules (max wait between shifts, tolerated overlap) and the solver's priorities. |
@@ -51,6 +51,19 @@ Across every page: a **light/dark/system** theme toggle (light by default) and
 **undo** for the last five actions — the ↶ button in the header, or ⌘Z / Ctrl+Z.
 Undo works by restoring a full snapshot taken before each change, so it reverses
 any action, including a whole schedule regeneration.
+
+### Editing by hand
+
+Every cell has a **+ Add someone**, which lists only the people whose
+availability covers that shift — manual control does not extend to breaking a
+hard rule. Anyone added by hand is locked automatically, since you just made a
+decision the next Generate must not quietly discard. Hover a name to remove it,
+or click it to toggle the lock.
+
+You *can* overstaff a shift by hand even though the solver never will, and you
+can create a wait longer than the maximum. Those show up as **rule warnings**
+above the grid rather than being blocked — an override should be visible, not
+silent.
 
 ### The Generate button
 

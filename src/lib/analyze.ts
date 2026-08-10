@@ -6,16 +6,30 @@
  * it. Recomputing from what is actually in the database keeps the screen honest.
  */
 
+import { isAvailable, preferenceFor } from "./availability";
+import { DEFAULT_SETTINGS, type SolverSettings } from "./types";
 import type {
   Assignment,
   AvailabilityWindow,
   CoverageGap,
   Person,
   PersonWorkload,
-  Preference,
   Shift,
   Weekday,
 } from "./types";
+
+/**
+ * A scheduling rule broken by the current assignments. The solver never
+ * produces these; they only appear after a manual edit, and exist so an
+ * override is visible rather than silent.
+ */
+export interface RuleViolation {
+  kind: "gap" | "overlap";
+  personId: number;
+  weekday: Weekday;
+  /** Waiting minutes, for `gap`. */
+  minutes: number;
+}
 
 export interface ScheduleAnalysis {
   gaps: CoverageGap[];
@@ -25,6 +39,7 @@ export interface ScheduleAnalysis {
   spreadMinutes: number;
   /** Assignments that no longer fit the person's availability. */
   conflicts: Assignment[];
+  violations: RuleViolation[];
 }
 
 export function analyzeSchedule(
@@ -32,6 +47,10 @@ export function analyzeSchedule(
   shifts: Shift[],
   assignments: Assignment[],
   availability: AvailabilityWindow[],
+  settings: Pick<SolverSettings, "maxGapMinutes" | "maxOverlapMinutes"> = {
+    maxGapMinutes: DEFAULT_SETTINGS.maxGapMinutes,
+    maxOverlapMinutes: DEFAULT_SETTINGS.maxOverlapMinutes,
+  },
 ): ScheduleAnalysis {
   const shiftById = new Map(shifts.map((s) => [s.id, s]));
   const activePeople = people.filter((p) => p.active);
@@ -52,6 +71,7 @@ export function analyzeSchedule(
   }
 
   const conflicts: Assignment[] = [];
+  const violations: RuleViolation[] = [];
   const workloads: PersonWorkload[] = people.map((person) => {
     const windows = availability.filter((w) => w.personId === person.id);
     const mine = assignments
@@ -62,13 +82,7 @@ export function analyzeSchedule(
     for (const a of assignments.filter((x) => x.personId === person.id)) {
       const shift = shiftById.get(a.shiftId);
       if (!shift) continue;
-      const covered = windows.some(
-        (w) =>
-          w.weekday === shift.weekday &&
-          w.startMin <= shift.startMin &&
-          w.endMin >= shift.endMin,
-      );
-      if (!covered) conflicts.push(a);
+      if (!isAvailable(shift, windows)) conflicts.push(a);
     }
 
     let totalMinutes = 0;
@@ -76,20 +90,6 @@ export function analyzeSchedule(
     let preferredMinutes = 0;
     let avoidedMinutes = 0;
     const daysWorked = new Set<Weekday>();
-
-    /** Same rule as the solver: the most positive covering window wins. */
-    const preferenceFor = (shift: Shift): Preference => {
-      const rank: Record<Preference, number> = { preferred: 0, neutral: 1, avoid: 2 };
-      const best = windows
-        .filter(
-          (w) =>
-            w.weekday === shift.weekday &&
-            w.startMin <= shift.startMin &&
-            w.endMin >= shift.endMin,
-        )
-        .sort((a, b) => rank[a.preference] - rank[b.preference])[0];
-      return best?.preference ?? "neutral";
-    };
 
     for (const weekday of [1, 2, 3, 4, 5, 6, 7] as Weekday[]) {
       const dayShifts = mine
@@ -110,9 +110,18 @@ export function analyzeSchedule(
         }
         totalMinutes += worked;
 
-        const preference = preferenceFor(shift);
+        const preference = preferenceFor(shift, windows);
         if (preference === "preferred") preferredMinutes += worked;
         else if (preference === "avoid") avoidedMinutes += worked;
+
+        if (lastEnd >= 0) {
+          const gap = shift.startMin - lastEnd;
+          if (gap > settings.maxGapMinutes) {
+            violations.push({ kind: "gap", personId: person.id, weekday, minutes: gap });
+          } else if (-gap > settings.maxOverlapMinutes) {
+            violations.push({ kind: "overlap", personId: person.id, weekday, minutes: -gap });
+          }
+        }
 
         lastEnd = Math.max(lastEnd, shift.endMin);
       }
@@ -141,6 +150,7 @@ export function analyzeSchedule(
     spreadMinutes:
       activeTotals.length > 0 ? Math.max(...activeTotals) - Math.min(...activeTotals) : 0,
     conflicts,
+    violations,
   };
 }
 

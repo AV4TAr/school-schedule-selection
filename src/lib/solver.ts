@@ -32,6 +32,7 @@ import {
   type SolverSettings,
   type Weekday,
 } from "./types";
+import { coveringWindow, isAvailable, windowsByPerson } from "./availability";
 
 export interface SolveInput {
   people: Person[];
@@ -63,33 +64,6 @@ interface DayPlan {
   /** Shifts of this day, sorted by start time (the recursion relies on it). */
   shifts: Shift[];
   patterns: DayPattern[];
-}
-
-/**
- * The window that lets `person` work the whole of `shift`, or undefined. A
- * single window must cover it end to end — two adjacent windows do not combine,
- * which is deliberate: a break in the middle means they are unavailable.
- *
- * When several windows qualify, the one the person feels best about wins, so a
- * "preferred" block is never masked by an overlapping "neutral" one.
- */
-function coveringWindow(
-  shift: Shift,
-  windows: AvailabilityWindow[],
-): AvailabilityWindow | undefined {
-  const rank: Record<string, number> = { preferred: 0, neutral: 1, avoid: 2 };
-  return windows
-    .filter(
-      (w) =>
-        w.weekday === shift.weekday &&
-        w.startMin <= shift.startMin &&
-        w.endMin >= shift.endMin,
-    )
-    .sort((a, b) => (rank[a.preference] ?? 1) - (rank[b.preference] ?? 1))[0];
-}
-
-function isAvailable(shift: Shift, windows: AvailabilityWindow[]): boolean {
-  return coveringWindow(shift, windows) !== undefined;
 }
 
 function understaffCost(assigned: number, shift: Shift, settings: SolverSettings): number {
@@ -293,12 +267,7 @@ export function solve(input: SolveInput): SolveResult {
   const peopleCount = people.length;
   const personIndex = new Map(people.map((p, i) => [p.id, i]));
 
-  const windowsByPerson = new Map<number, AvailabilityWindow[]>();
-  for (const w of input.availability) {
-    const list = windowsByPerson.get(w.personId);
-    if (list) list.push(w);
-    else windowsByPerson.set(w.personId, [w]);
-  }
+  const byPerson = windowsByPerson(input.availability);
 
   // Pins referring to unavailable people (or unknown ids) are reported back to
   // the caller rather than silently honoured or silently dropped.
@@ -307,7 +276,7 @@ export function solve(input: SolveInput): SolveResult {
   for (const pin of input.pins ?? []) {
     const shift = shifts.find((s) => s.id === pin.shiftId);
     const idx = personIndex.get(pin.personId);
-    const windows = windowsByPerson.get(pin.personId) ?? [];
+    const windows = byPerson.get(pin.personId) ?? [];
     if (!shift || idx === undefined || !isAvailable(shift, windows)) {
       droppedPins.push(pin);
       continue;
@@ -332,7 +301,7 @@ export function solve(input: SolveInput): SolveResult {
     );
     const covering = sorted.map((shift) =>
       people
-        .map((p, i) => ({ i, window: coveringWindow(shift, windowsByPerson.get(p.id) ?? []) }))
+        .map((p, i) => ({ i, window: coveringWindow(shift, byPerson.get(p.id) ?? []) }))
         .filter((entry): entry is { i: number; window: AvailabilityWindow } =>
           Boolean(entry.window),
         ),
@@ -480,7 +449,7 @@ export function solve(input: SolveInput): SolveResult {
   const workloads: PersonWorkload[] = people.map((person, i) => {
     const worked = daysWorkedBy.get(person.id) ?? new Set<Weekday>();
     const availableDays = new Set(
-      (windowsByPerson.get(person.id) ?? []).map((w) => w.weekday),
+      (byPerson.get(person.id) ?? []).map((w) => w.weekday),
     );
     return {
       personId: person.id,

@@ -1,13 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 
-import { clearPins, generateSchedule, togglePin } from "@/app/actions";
+import {
+  addAssignment,
+  clearPins,
+  generateSchedule,
+  removeAssignment,
+  togglePin,
+} from "@/app/actions";
 import { analyzeSchedule, buildShiftRows, type ScheduleAnalysis } from "@/lib/analyze";
 import { useI18n } from "@/lib/i18n/context";
 import { toHours } from "@/lib/time";
-import type { Assignment, AvailabilityWindow, Person, Shift, Weekday } from "@/lib/types";
+import type {
+  Assignment,
+  AvailabilityWindow,
+  Person,
+  Shift,
+  SolverSettings,
+  Weekday,
+} from "@/lib/types";
 
 interface Props {
   people: Person[];
@@ -16,6 +29,7 @@ interface Props {
   assignments: Assignment[];
   /** Weekdays that have at least one shift, in order. */
   weekdays: Weekday[];
+  settings: SolverSettings;
 }
 
 export function ScheduleView({
@@ -24,13 +38,14 @@ export function ScheduleView({
   availability,
   assignments,
   weekdays,
+  settings,
 }: Props) {
   const { t, fmt, range, duration, weekday } = useI18n();
   const [pending, startTransition] = useTransition();
 
   const analysis = useMemo(
-    () => analyzeSchedule(people, shifts, assignments, availability),
-    [people, shifts, assignments, availability],
+    () => analyzeSchedule(people, shifts, assignments, availability, settings),
+    [people, shifts, assignments, availability, settings],
   );
   const rows = useMemo(() => buildShiftRows(shifts), [shifts]);
   const personById = useMemo(() => new Map(people.map((p) => [p.id, p])), [people]);
@@ -43,6 +58,27 @@ export function ScheduleView({
     () => new Map(analysis.gaps.map((g) => [g.shiftId, g])),
     [analysis.gaps],
   );
+
+  /** Everyone whose availability covers this shift end to end. */
+  const candidatesFor = useMemo(() => {
+    const windowsByPerson = new Map<number, AvailabilityWindow[]>();
+    for (const w of availability) {
+      const list = windowsByPerson.get(w.personId);
+      if (list) list.push(w);
+      else windowsByPerson.set(w.personId, [w]);
+    }
+    return (shift: Shift) =>
+      people.filter(
+        (p) =>
+          p.active &&
+          (windowsByPerson.get(p.id) ?? []).some(
+            (w) =>
+              w.weekday === shift.weekday &&
+              w.startMin <= shift.startMin &&
+              w.endMin >= shift.endMin,
+          ),
+      );
+  }, [people, availability]);
 
   const hasSchedule = assignments.length > 0;
   const pinnedCount = assignments.filter((a) => a.pinned).length;
@@ -101,7 +137,7 @@ export function ScheduleView({
         </div>
       ) : (
         <>
-          <CoverageBanner analysis={analysis} shifts={shifts} />
+          <CoverageBanner analysis={analysis} shifts={shifts} people={people} />
 
           <div className="card overflow-x-auto">
             <table className="w-full min-w-[54rem] border-collapse">
@@ -152,30 +188,45 @@ export function ScheduleView({
                             }`}
                           >
                             {staff.map((a) => (
-                              <button
-                                key={a.personId}
-                                type="button"
-                                disabled={pending}
-                                data-person={hueOf.get(a.personId) ?? 0}
-                                data-pinned={a.pinned}
-                                title={a.pinned ? t.hints.unpinChip : t.hints.pinChip}
-                                onClick={() =>
-                                  startTransition(
-                                    () => void togglePin(shift.id, a.personId),
-                                  )
-                                }
-                                className="chip"
-                              >
-                                <span aria-hidden className="chip-dot" />
-                                <span className="truncate">
-                                  {personById.get(a.personId)?.name ?? "?"}
-                                </span>
-                                {a.pinned && (
-                                  <span aria-hidden className="ml-auto text-2xs">
-                                    🔒
+                              <div key={a.personId} className="group/chip flex items-center">
+                                <button
+                                  type="button"
+                                  disabled={pending}
+                                  data-person={hueOf.get(a.personId) ?? 0}
+                                  data-pinned={a.pinned}
+                                  title={a.pinned ? t.hints.unpinChip : t.hints.pinChip}
+                                  onClick={() =>
+                                    startTransition(
+                                      () => void togglePin(shift.id, a.personId),
+                                    )
+                                  }
+                                  className="chip"
+                                >
+                                  <span aria-hidden className="chip-dot" />
+                                  <span className="truncate">
+                                    {personById.get(a.personId)?.name ?? "?"}
                                   </span>
-                                )}
-                              </button>
+                                  {a.pinned && (
+                                    <span aria-hidden className="ml-auto text-2xs">
+                                      🔒
+                                    </span>
+                                  )}
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={pending}
+                                  title={t.hints.removeFromShift}
+                                  aria-label={t.schedule.removePerson}
+                                  onClick={() =>
+                                    startTransition(
+                                      () => void removeAssignment(shift.id, a.personId),
+                                    )
+                                  }
+                                  className="ml-0.5 shrink-0 rounded-[3px] px-1 text-2xs text-faint opacity-0 transition group-hover/chip:opacity-100 hover:bg-danger-soft hover:text-danger focus-visible:opacity-100"
+                                >
+                                  ✕
+                                </button>
+                              </div>
                             ))}
 
                             {staff.length === 0 && (
@@ -183,6 +234,19 @@ export function ScheduleView({
                                 {t.schedule.unstaffed}
                               </span>
                             )}
+
+                            <AddPersonMenu
+                              disabled={pending}
+                              candidates={candidatesFor(shift).filter(
+                                (p) => !staff.some((a) => a.personId === p.id),
+                              )}
+                              hueOf={hueOf}
+                              onAdd={(personId) =>
+                                startTransition(
+                                  () => void addAssignment(shift.id, personId),
+                                )
+                              }
+                            />
 
                             {gap && (
                               <span
@@ -363,15 +427,19 @@ function WorkloadPanel({
 function CoverageBanner({
   analysis,
   shifts,
+  people,
 }: {
   analysis: ScheduleAnalysis;
   shifts: Shift[];
+  people: Person[];
 }) {
   const { t, fmt, range, weekday } = useI18n();
   const shiftById = new Map(shifts.map((s) => [s.id, s]));
   const { gaps, conflicts } = analysis;
 
-  if (gaps.length === 0 && conflicts.length === 0) {
+  const { violations } = analysis;
+
+  if (gaps.length === 0 && conflicts.length === 0 && violations.length === 0) {
     return (
       <p className="flex items-center gap-2 rounded-[var(--r-md)] border border-ok-line bg-ok-soft px-3 py-2 text-base text-ok">
         <span aria-hidden>✓</span>
@@ -397,6 +465,25 @@ function CoverageBanner({
         <p className="border-b border-danger-line bg-danger-soft px-4 py-2 text-base text-danger">
           {fmt(t.schedule.conflicts, { count: conflicts.length })}
         </p>
+      )}
+
+      {violations.length > 0 && (
+        <ul className="border-b border-warn-line bg-warn-soft px-4 py-2 text-base text-warn">
+          {violations.map((v, i) => (
+            <li key={i}>
+              {v.kind === "gap"
+                ? fmt(t.schedule.gapTooLong, {
+                    person: people.find((p) => p.id === v.personId)?.name ?? "?",
+                    minutes: v.minutes,
+                    day: weekday(v.weekday),
+                  })
+                : fmt(t.schedule.overlaps, {
+                    person: people.find((p) => p.id === v.personId)?.name ?? "?",
+                    day: weekday(v.weekday),
+                  })}
+            </li>
+          ))}
+        </ul>
       )}
 
       <ul className="divide-y divide-line">
@@ -427,5 +514,73 @@ function CoverageBanner({
         })}
       </ul>
     </section>
+  );
+}
+
+/**
+ * Adds a person to a shift by hand. Only lists people whose availability covers
+ * the shift — manual control does not extend to breaking a hard rule.
+ */
+function AddPersonMenu({
+  candidates,
+  hueOf,
+  disabled,
+  onAdd,
+}: {
+  candidates: Person[];
+  hueOf: Map<number, number>;
+  disabled?: boolean;
+  onAdd: (personId: number) => void;
+}) {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        disabled={disabled}
+        title={t.hints.addToShift}
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className="w-full rounded-[var(--r-sm)] border border-dashed border-line px-2 py-0.5 text-left text-2xs text-faint transition hover:border-accent hover:text-accent"
+      >
+        + {t.schedule.addPerson}
+      </button>
+
+      {open && (
+        <>
+          {/* Click anywhere else to dismiss. */}
+          <button
+            type="button"
+            aria-hidden
+            tabIndex={-1}
+            className="fixed inset-0 z-40 cursor-default"
+            onClick={() => setOpen(false)}
+          />
+          <div className="absolute top-full left-0 z-50 mt-1 min-w-40 rounded-[var(--r-md)] border border-line bg-surface p-1 shadow-[var(--e-2)]">
+            {candidates.length === 0 ? (
+              <p className="px-2 py-1.5 text-2xs text-muted">{t.schedule.noCandidates}</p>
+            ) : (
+              candidates.map((person) => (
+                <button
+                  key={person.id}
+                  type="button"
+                  data-person={hueOf.get(person.id) ?? 0}
+                  className="chip"
+                  onClick={() => {
+                    setOpen(false);
+                    onAdd(person.id);
+                  }}
+                >
+                  <span aria-hidden className="chip-dot" />
+                  {person.name}
+                </button>
+              ))
+            )}
+          </div>
+        </>
+      )}
+    </div>
   );
 }
