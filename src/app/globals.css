@@ -1,0 +1,101 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f7f7f8;
+  --surface: #ffffff;
+  --border: #e4e4e7;
+  --foreground: #18181b;
+  --muted: #6b7280;
+  --accent: #4f46e5;
+  --accent-soft: #eef2ff;
+  --ok: #059669;
+  --ok-soft: #ecfdf5;
+  --warn: #b45309;
+  --warn-soft: #fffbeb;
+  --danger: #dc2626;
+  --danger-soft: #fef2f2;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0b0b0e;
+    --surface: #16161a;
+    --border: #2a2a31;
+    --foreground: #ededf0;
+    --muted: #9ca3af;
+    --accent: #818cf8;
+    --accent-soft: #1e1b3a;
+    --ok: #34d399;
+    --ok-soft: #062e24;
+    --warn: #fbbf24;
+    --warn-soft: #2e2205;
+    --danger: #f87171;
+    --danger-soft: #2c0f0f;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-line: var(--border);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Shared control styling, so every form on every page matches. */
+@layer components {
+  .field {
+    @apply rounded-md border border-line bg-surface px-2.5 py-1.5 text-sm text-foreground
+           outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/25;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-md border border-line
+           bg-surface px-3 py-1.5 text-sm font-medium text-foreground transition
+           hover:border-accent hover:text-accent disabled:pointer-events-none disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply border-transparent bg-accent text-white hover:bg-accent hover:text-white
+           hover:opacity-90;
+  }
+  .btn-ghost {
+    @apply border-transparent bg-transparent px-2 text-muted hover:text-danger;
+  }
+  .card {
+    @apply rounded-xl border border-line bg-surface;
+  }
+  .label {
+    @apply block text-xs font-medium tracking-wide text-muted uppercase;
+  }
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+    color: #000;
+  }
+  .card {
+    border-color: #d4d4d8;
+  }
+  @page {
+    margin: 14mm;
+  }
+}
