@@ -15,8 +15,9 @@ npm run typecheck                        # tsc --noEmit
 npm run lint                             # eslint
 npm run build                            # production build
 npm run db:generate                      # regenerate drizzle/ after editing schema.ts
-npm run db:seed                          # migrate + seed if empty (idempotent)
-npm run db:seed -- --reset --generate    # wipe, reseed, solve a schedule
+npm run db:seed                          # migrate only (idempotent, never seeds on its own)
+npm run db:seed -- --demo --generate     # create a demo schedule and solve its first week
+npm run reset-password -- CODE newpass   # set a schedule's admin password directly
 npm run design:build                     # rebuild design-system/dist previews
 ```
 
