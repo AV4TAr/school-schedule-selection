@@ -1,8 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState, useMemo, useTransition } from "react";
-import { createPortal } from "react-dom";
+import { useState, useMemo, useTransition } from "react";
 
 import {
   addAssignment,
@@ -11,6 +10,9 @@ import {
   removeAssignment,
   togglePin,
 } from "@/app/actions";
+import { AddPersonMenu } from "@/components/schedule/AddPersonMenu";
+import { MobileSchedule } from "@/components/schedule/MobileSchedule";
+import { personColor } from "@/components/schedule/person-hue";
 import { analyzeSchedule, buildShiftRows, type ScheduleAnalysis } from "@/lib/analyze";
 import { useI18n } from "@/lib/i18n/context";
 import { toHours } from "@/lib/time";
@@ -66,6 +68,11 @@ export function ScheduleView({
     () => new Map(analysis.gaps.map((g) => [g.shiftId, g])),
     [analysis.gaps],
   );
+  /** Assignments that no longer fit availability, keyed for a cheap lookup. */
+  const conflictKeys = useMemo(
+    () => new Set(analysis.conflicts.map((a) => `${a.shiftId}:${a.personId}`)),
+    [analysis.conflicts],
+  );
 
   /** Everyone whose availability covers this shift end to end. */
   const candidatesFor = useMemo(() => {
@@ -98,11 +105,14 @@ export function ScheduleView({
           <h1 className="page-title">{t.schedule.title}</h1>
           <p className="mt-1 text-base text-muted">{t.schedule.subtitle}</p>
         </div>
-        <div className="no-print flex items-center gap-2">
+        {/* On a phone the primary action leads and takes the full width, and
+            the rest share the row below it; `order` puts them back in the
+            desktop sequence from `md` up rather than duplicating the markup. */}
+        <div className="no-print flex w-full flex-wrap items-center gap-2 md:w-auto">
           {canEdit && pinnedCount > 0 && (
             <button
               type="button"
-              className="btn"
+              className="btn order-2 grow basis-[calc(50%-0.25rem)] md:order-1 md:grow-0 md:basis-auto"
               title={t.hints.clearPins}
               disabled={pending}
               onClick={() => {
@@ -115,13 +125,17 @@ export function ScheduleView({
               <span className="pill pill-neutral">{pinnedCount}</span>
             </button>
           )}
-          <Link className="btn" href={`/s/${code}/print`} title={t.hints.print}>
+          <Link
+            className="btn order-3 grow basis-[calc(50%-0.25rem)] md:order-2 md:grow-0 md:basis-auto"
+            href={`/s/${code}/print`}
+            title={t.hints.print}
+          >
             {t.nav.print}
           </Link>
           {canEdit && (
           <button
             type="button"
-            className="btn btn-primary"
+            className="btn btn-primary order-1 basis-full md:order-3 md:basis-auto"
             title={t.hints.generate}
             disabled={pending}
             onClick={() => {
@@ -163,7 +177,32 @@ export function ScheduleView({
         <>
           <CoverageBanner analysis={analysis} shifts={shifts} people={people} />
 
-          <div className="card overflow-x-auto">
+          <MobileSchedule
+            weekdays={weekdays}
+            shifts={shifts}
+            assignments={assignments}
+            people={people}
+            hueOf={hueOf}
+            gapByShift={gapByShift}
+            conflictKeys={conflictKeys}
+            candidatesFor={candidatesFor}
+            canEdit={canEdit}
+            pending={pending}
+            onTogglePin={(shiftId, personId) =>
+              startTransition(() => void togglePin(scheduleId, shiftId, personId))
+            }
+            onRemove={(shiftId, personId) =>
+              startTransition(() => void removeAssignment(scheduleId, shiftId, personId))
+            }
+            onAdd={(shiftId, personId) =>
+              startTransition(() => void addAssignment(scheduleId, shiftId, personId))
+            }
+          />
+
+          {/* The matrix is the right shape for a wide screen and the wrong one
+              for a phone; both are rendered and one is hidden, which for five
+              days of a handful of shifts is cheaper than a media-query hook. */}
+          <div className="card hidden overflow-x-auto md:block">
             <table className="w-full min-w-[54rem] border-collapse">
               <thead>
                 <tr className="border-b border-line">
@@ -385,7 +424,7 @@ function WorkloadPanel({
     <section className="space-y-2.5">
       <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
         <h2 className="section-title">{labels.title}</h2>
-        <div className="flex gap-5 text-xs text-muted">
+        <div className="flex flex-wrap gap-x-5 gap-y-0.5 text-xs text-muted">
           <span title={labels.spreadHint}>
             {labels.spread}{" "}
             <strong className="num font-semibold text-foreground">
@@ -411,29 +450,32 @@ function WorkloadPanel({
             const hue = hueOf.get(person.id) ?? 0;
             const overMean = w.totalMinutes > mean;
             return (
+              /* Under `md` the three columns become three stacked rows: a
+                 name that is allowed to wrap rather than be clipped, a
+                 full-width meter, and the counters wrapping under it. */
               <div
                 key={w.personId}
-                className="grid grid-cols-[8.5rem_1fr_auto] items-center gap-4 px-4 py-2.5"
+                className="flex flex-col gap-1.5 px-4 py-2.5 md:grid md:grid-cols-[8.5rem_1fr_auto] md:items-center md:gap-4"
               >
-                <div className="flex items-center gap-2 truncate">
+                <div className="flex min-w-0 items-center gap-2 md:truncate">
                   <span
                     aria-hidden
                     className="chip-dot"
-                    style={{ background: `var(--c-p${hue === 0 ? 6 : hue})` }}
+                    style={{ background: personColor(hue) }}
                   />
-                  <span className="truncate text-sm font-medium">{person.name}</span>
+                  <span className="text-sm font-medium md:truncate">{person.name}</span>
                   {!person.active && (
                     <span className="pill pill-neutral">{labels.inactive}</span>
                   )}
                 </div>
 
                 <div className="flex items-center gap-3">
-                  <div className="relative h-2.5 flex-1 overflow-hidden rounded-[var(--r-full)] bg-raised">
+                  <div className="relative h-2.5 min-w-0 flex-1 overflow-hidden rounded-[var(--r-full)] bg-raised">
                     <div
                       className="h-full rounded-[var(--r-full)]"
                       style={{
                         width: `${(w.totalMinutes / scale) * 100}%`,
-                        background: `var(--c-p${hue === 0 ? 6 : hue})`,
+                        background: personColor(hue),
                       }}
                     />
                     {/* Even-split target: everything to its right is above fair share. */}
@@ -445,7 +487,7 @@ function WorkloadPanel({
                     />
                   </div>
                   <span
-                    className={`num w-16 text-right text-sm font-medium ${
+                    className={`num w-16 shrink-0 text-right text-sm font-medium ${
                       overMean ? "text-foreground" : "text-muted"
                     }`}
                   >
@@ -453,7 +495,7 @@ function WorkloadPanel({
                   </span>
                 </div>
 
-                <div className="num flex items-center gap-3 text-2xs text-faint">
+                <div className="num flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs text-faint">
                   <span>
                     {labels.days} {w.daysWorked.length}
                   </span>
@@ -516,7 +558,7 @@ function CoverageBanner({
         disabled={!hasList}
         aria-expanded={expanded}
         onClick={() => setExpanded((v) => !v)}
-        className="flex w-full items-center gap-2 border-b border-line px-4 py-2.5 text-left disabled:cursor-default"
+        className="flex w-full items-center gap-2 border-b border-line px-3 py-2.5 text-left disabled:cursor-default md:px-4"
       >
         <h2 className="text-sm font-semibold">{t.schedule.coverageTitle}</h2>
         {critical.length > 0 && (
@@ -563,13 +605,13 @@ function CoverageBanner({
             return (
               <li
                 key={gap.shiftId}
-                className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 text-base"
+                className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-base md:px-4"
               >
                 <span className={`pill ${gap.critical ? "pill-danger" : "pill-warn"}`}>
                   {gap.critical ? t.schedule.criticalGap : t.schedule.idealGap}
                 </span>
                 <span className="font-medium">{weekday(shift.weekday)}</span>
-                <span className="text-muted">{shift.name}</span>
+                <span className="min-w-0 text-muted">{shift.name}</span>
                 <span className="num text-xs text-faint">
                   {range(shift.startMin, shift.endMin)}
                 </span>
@@ -585,117 +627,5 @@ function CoverageBanner({
         </ul>
       )}
     </section>
-  );
-}
-
-/**
- * Adds a person to a shift by hand. Only lists people whose availability covers
- * the shift — manual control does not extend to breaking a hard rule.
- *
- * The menu is portalled to <body> and positioned in viewport coordinates: the
- * grid scrolls horizontally, and `overflow-x: auto` clips a normally-positioned
- * dropdown out of existence.
- */
-function AddPersonMenu({
-  candidates,
-  hueOf,
-  disabled,
-  onAdd,
-}: {
-  candidates: Person[];
-  hueOf: Map<number, number>;
-  disabled?: boolean;
-  onAdd: (personId: number) => void;
-}) {
-  const { t } = useI18n();
-  const [open, setOpen] = useState(false);
-  const [anchor, setAnchor] = useState<{ top: number; left: number } | null>(null);
-  const buttonRef = useRef<HTMLButtonElement>(null);
-
-  // Anything that moves the button invalidates the position, and re-measuring
-  // mid-scroll is not worth it for a menu this small.
-  useEffect(() => {
-    if (!open) return;
-    const close = () => setOpen(false);
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    window.addEventListener("scroll", close, true);
-    window.addEventListener("resize", close);
-    window.addEventListener("keydown", onKey);
-    return () => {
-      window.removeEventListener("scroll", close, true);
-      window.removeEventListener("resize", close);
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
-
-  const toggle = () => {
-    if (open) return setOpen(false);
-    const rect = buttonRef.current?.getBoundingClientRect();
-    if (rect) setAnchor({ top: rect.bottom + 4, left: rect.left });
-    setOpen(true);
-  };
-
-  return (
-    <>
-      {/* Deliberately small and quiet: one of these sits in every cell, and at
-          full width with a label they out-shouted the names they sit under. */}
-      <button
-        ref={buttonRef}
-        type="button"
-        disabled={disabled}
-        title={t.hints.addToShift}
-        aria-label={t.schedule.addPerson}
-        aria-expanded={open}
-        onClick={toggle}
-        className={`flex h-4.5 w-6 items-center justify-center rounded-[3px] text-xs leading-none transition ${
-          open
-            ? "bg-accent-soft text-accent"
-            : "text-faint/40 group-hover/cell:text-muted hover:!bg-accent-soft hover:!text-accent focus-visible:text-accent"
-        }`}
-      >
-        +
-      </button>
-
-      {open &&
-        anchor &&
-        createPortal(
-          <>
-            <button
-              type="button"
-              aria-hidden
-              tabIndex={-1}
-              className="fixed inset-0 z-40 cursor-default"
-              onClick={() => setOpen(false)}
-            />
-            <div
-              role="menu"
-              style={{ top: anchor.top, left: anchor.left }}
-              className="fixed z-50 min-w-40 rounded-[var(--r-md)] border border-line bg-surface p-1 shadow-[var(--e-2)]"
-            >
-              {candidates.length === 0 ? (
-                <p className="px-2 py-1.5 text-2xs text-muted">{t.schedule.noCandidates}</p>
-              ) : (
-                candidates.map((person) => (
-                  <button
-                    key={person.id}
-                    type="button"
-                    role="menuitem"
-                    data-person={hueOf.get(person.id) ?? 0}
-                    className="chip"
-                    onClick={() => {
-                      setOpen(false);
-                      onAdd(person.id);
-                    }}
-                  >
-                    <span aria-hidden className="chip-dot" />
-                    {person.name}
-                  </button>
-                ))
-              )}
-            </div>
-          </>,
-          document.body,
-        )}
-    </>
   );
 }

@@ -234,6 +234,46 @@ theme — which React reports as a hydration mismatch. `<html>` therefore carrie
 brings the error straight back. `<head>` carries it too, for browser extensions
 that inject or rewrite scripts there before React loads.
 
+### Mobile layout
+
+The web is the product and the phone is the common device, so **every admin
+screen is mobile-first**: unprefixed classes are the phone layout and `md:`
+(768px) restores the desktop one. Adding a screen means writing the phone
+layout first, not adding phone fixes afterwards.
+
+**`src/app/layout.tsx` must export `viewport` with `width: "device-width"`.**
+Without it a phone renders every page at ~980 CSS px and scales the result
+down; no media query ever sees the real width, so no amount of responsive CSS
+can compensate. `maximumScale` is deliberately left unset — pinch-zoom is an
+accessibility affordance.
+
+Four mechanisms carry the responsive work, and each exists to avoid a JS
+branch on viewport width — a `matchMedia` hook renders differently on the
+server than on the client, which means a hydration mismatch and a visible flash
+on every navigation:
+
+- **`md:contents`** is how a dense desktop row becomes a stack. The phone
+  layout wraps controls in grouping `<div>`s; from `md` up those wrappers
+  become `display: contents` and drop out of the box tree, so the children land
+  back in the original single flex row. One set of controls, one DOM order.
+- **`.sheet`** (`src/styles/components.css`, driven by `src/components/Sheet.tsx`)
+  is one overlay with two shapes: a bottom sheet on a phone, an anchored
+  popover from `md` up. Anchor coordinates travel as `--sheet-x`/`--sheet-y`
+  custom properties and never as inline `left`/`top` — inline styles would beat
+  the media query and strand the sheet mid-screen on a phone.
+- **`hidden md:block` / `md:hidden` twin layouts** are used where the shapes
+  genuinely differ, as on the schedule screen: a weekday grid from `md` up, one
+  day at a time below it. Both trees are in the DOM; at this data size that is
+  cheaper than getting hydration wrong.
+- **`body.has-tabbar`** is added by `ScheduleNav` from an effect, because the
+  fixed bottom tab bar has to be cleared by the footer, which lives outside
+  `<main>`.
+
+Touch sizing is keyed on `pointer: coarse`, not on width, so a narrow window on
+a laptop stays dense. **Text inputs grow to 16px there and must stay there**:
+below 16px, iOS Safari zooms the whole page in on focus and never zooms back
+out.
+
 ### Undo
 
 `src/lib/db/undo.ts`. Each mutating action calls `pushUndo({ key, params })`

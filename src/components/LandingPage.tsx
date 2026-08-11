@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 
 import { createNewSchedule, goToSchedule } from "@/app/auth-actions";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { MAX_CODE_LENGTH } from "@/lib/auth-shared";
 import { useI18n } from "@/lib/i18n/context";
 import { LOCALES, type Locale } from "@/lib/i18n/dictionaries";
 
@@ -16,7 +17,7 @@ export function LandingPage() {
   return (
     <div className="min-h-screen">
       <header className="border-b border-line">
-        <div className="mx-auto flex max-w-3xl items-center gap-3 px-6 py-3">
+        <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3 md:px-6">
           <span
             aria-hidden
             className="grid h-6 w-6 place-items-center rounded-[var(--r-sm)] bg-accent text-2xs font-bold text-accent-fg"
@@ -35,13 +36,17 @@ export function LandingPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-3xl space-y-10 px-6 py-12">
+      {/* A phone gets the two forms straight after the pitch, so the code entry
+          — the one control a returning visitor came for — is above the fold;
+          the three explainer cards drop below them. `order` restores the
+          desktop reading order without moving anything in the DOM. */}
+      <main className="mx-auto flex max-w-3xl flex-col gap-8 px-4 py-8 md:gap-10 md:px-6 md:py-12">
         <section>
           <h1 className="text-2xl font-semibold tracking-[-0.03em]">{t.landing.tagline}</h1>
           <p className="mt-3 text-base leading-relaxed text-muted">{t.landing.intro}</p>
         </section>
 
-        <section className="grid gap-4 sm:grid-cols-3">
+        <section className="order-last grid gap-4 sm:grid-cols-3 md:order-none">
           {[
             { n: 1, title: t.landing.step1Title, body: t.landing.step1 },
             { n: 2, title: t.landing.step2Title, body: t.landing.step2 },
@@ -91,7 +96,16 @@ function EnterCodeCard() {
         </label>
         <input
           id="code"
-          className="field num tracking-widest uppercase"
+          // A code is letters and digits, so the plain text keyboard is the
+          // right one — but never autocapitalised into a suggestion, corrected,
+          // or offered from a saved form.
+          autoCapitalize="characters"
+          autoComplete="off"
+          autoCorrect="off"
+          spellCheck={false}
+          // 15 characters plus the dash a generated code is shown with.
+          maxLength={MAX_CODE_LENGTH + 1}
+          className="field num tracking-widest uppercase max-md:h-12 max-md:text-center max-md:text-lg max-md:font-semibold"
           placeholder={t.landing.codePlaceholder}
           value={code}
           disabled={pending}
@@ -105,7 +119,7 @@ function EnterCodeCard() {
       {notFound && <p className="pill pill-danger">{t.landing.codeNotFound}</p>}
       <button
         type="button"
-        className="btn"
+        className="btn w-full md:w-auto"
         disabled={pending || !code.trim()}
         onClick={submit}
       >
@@ -146,13 +160,13 @@ function CreateScheduleCard() {
       <section className="card space-y-3 p-5">
         <h2 className="section-title">{t.landing.createdTitle}</h2>
         <p className="text-xs text-muted">{t.landing.createdCode}</p>
-        <p className="num rounded-[var(--r-md)] border border-accent-line bg-accent-soft px-4 py-3 text-center text-lg font-bold tracking-widest text-accent select-all">
+        <p className="num rounded-[var(--r-md)] border border-accent-line bg-accent-soft px-4 py-3 text-center text-lg font-bold tracking-widest text-accent select-all max-md:text-xl">
           {createdCode}
         </p>
         <p className="text-xs text-muted">{t.landing.createdWarning}</p>
         <button
           type="button"
-          className="btn btn-primary"
+          className="btn btn-primary w-full md:w-auto"
           onClick={() => router.push(`/s/${createdCode}`)}
         >
           {t.landing.goToSchedule}
@@ -200,7 +214,7 @@ function CreateScheduleCard() {
 
       <button
         type="button"
-        className="btn btn-primary"
+        className="btn btn-primary w-full md:w-auto"
         disabled={pending || !name.trim() || !password}
         onClick={submit}
       >
@@ -217,7 +231,7 @@ function LocaleButton({ code }: { code: Locale }) {
       type="button"
       onClick={() => setLocale(code)}
       aria-pressed={locale === code}
-      className={`rounded-[3px] px-1.5 py-0.5 text-2xs font-semibold transition ${
+      className={`rounded-[3px] px-2 py-1.5 text-2xs font-semibold transition md:px-1.5 md:py-0.5 ${
         locale === code
           ? "bg-surface text-foreground shadow-[var(--e-1)]"
           : "text-faint hover:text-foreground"

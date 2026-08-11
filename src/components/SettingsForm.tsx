@@ -178,7 +178,9 @@ function NumberRow({
   }
 
   return (
-    <div className="grid grid-cols-[1fr_auto] items-start gap-4 px-4 py-3">
+    // Stacked on a phone: a long label beside a 7rem input leaves the text a
+    // ~9rem column and shreds it. Two columns again from `md`, unchanged.
+    <div className="grid items-start gap-2 px-4 py-3 md:grid-cols-[1fr_auto] md:gap-4">
       <div className="flex gap-2.5">
         {rank !== undefined && (
           <span className="num mt-0.5 grid h-5 w-5 flex-none place-items-center rounded-[var(--r-full)] bg-raised text-2xs font-semibold text-muted">
@@ -193,6 +195,7 @@ function NumberRow({
       <div className="flex items-center gap-2">
         <input
           type="number"
+          inputMode="numeric"
           min={0}
           className="field num w-28 text-right"
           value={draft}
@@ -204,7 +207,13 @@ function NumberRow({
             if (parsed !== value) onChange(parsed);
           }}
         />
-        <span className="w-12 text-xs text-faint">{unit ?? ""}</span>
+        {/* The unit column is held open on desktop even when empty, so inputs
+            in a section line up; on a phone it would only be dead space. */}
+        {unit ? (
+          <span className="w-12 text-xs text-faint">{unit}</span>
+        ) : (
+          <span aria-hidden className="hidden w-12 md:block" />
+        )}
       </div>
     </div>
   );
@@ -280,7 +289,13 @@ function ScheduleSection({
           <div className="flex flex-wrap items-center gap-2">
             <input
               id="schedule-code-field"
-              className="field num w-52 font-semibold tracking-widest"
+              // Codes are letters and digits, so the plain text keyboard is the
+              // right one — just without autocorrect fighting the typist.
+              autoCapitalize="characters"
+              autoComplete="off"
+              autoCorrect="off"
+              spellCheck={false}
+              className="field num min-w-0 flex-1 font-semibold tracking-widest sm:w-52 sm:flex-none"
               maxLength={MAX_CODE_LENGTH}
               value={codeDraft}
               disabled={pending}
@@ -323,7 +338,9 @@ function ScheduleSection({
 
         <div className="space-y-2.5 px-4 py-3">
           <h3 className="text-sm font-medium">{t.settings.changePassword}</h3>
-          <div className="flex flex-wrap gap-2">
+          {/* Two 13rem fields never fit side by side on a phone, and wrapping
+              them leaves a ragged half-empty row — so stack them instead. */}
+          <div className="grid gap-2.5 sm:flex sm:flex-wrap sm:gap-2">
             <div>
               <label className="label" htmlFor="current-password">
                 {t.settings.currentPassword}
@@ -332,7 +349,7 @@ function ScheduleSection({
                 id="current-password"
                 type="password"
                 autoComplete="current-password"
-                className="field w-52"
+                className="field sm:w-52"
                 value={current}
                 disabled={pending}
                 onChange={(e) => setCurrent(e.target.value)}
@@ -346,15 +363,16 @@ function ScheduleSection({
                 id="next-password"
                 type="password"
                 autoComplete="new-password"
-                className="field w-52"
+                className="field sm:w-52"
                 value={next}
                 disabled={pending}
                 onChange={(e) => setNext(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && submitPassword()}
               />
             </div>
             <button
               type="button"
-              className="btn mt-auto mb-0.5"
+              className="btn w-full sm:mt-auto sm:mb-0.5 sm:w-auto"
               disabled={pending || !next}
               onClick={submitPassword}
             >

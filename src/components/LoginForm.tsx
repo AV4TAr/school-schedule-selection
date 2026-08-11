@@ -39,7 +39,7 @@ export function LoginForm({
   };
 
   return (
-    <div className="mx-auto max-w-sm py-10">
+    <div className="mx-auto max-w-sm py-4 md:py-10">
       <h1 className="page-title">{scheduleName}</h1>
       <p className="mt-1.5 text-base text-muted">
         {needsFirstPassword ? t.auth.setFirstPassword : t.auth.passwordPrompt}
@@ -54,7 +54,10 @@ export function LoginForm({
             id="password"
             type="password"
             autoFocus
-            autoComplete="current-password"
+            // Setting the very first password is a new one, not the saved one:
+            // asking for `current-password` there makes a phone offer the wrong
+            // suggestion instead of generating a strong password.
+            autoComplete={needsFirstPassword ? "new-password" : "current-password"}
             className="field"
             value={password}
             disabled={pending}
@@ -69,16 +72,19 @@ export function LoginForm({
           </p>
         )}
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <button
             type="button"
-            className="btn btn-primary"
+            className="btn btn-primary w-full sm:w-auto"
             disabled={pending || !password}
             onClick={submit}
           >
             {t.auth.signIn}
           </button>
-          <Link href={`/s/${code}`} className="text-base text-muted underline underline-offset-2">
+          <Link
+            href={`/s/${code}`}
+            className="py-1 text-center text-base text-muted underline underline-offset-2 sm:py-0 sm:text-left"
+          >
             {t.auth.back}
           </Link>
         </div>

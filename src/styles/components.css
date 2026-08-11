@@ -293,8 +293,22 @@
     border-radius: var(--r-lg) var(--r-lg) 0 0;
     background: var(--c-surface);
     box-shadow: var(--e-2);
-    padding-bottom: env(safe-area-inset-bottom);
+    /* The half-rem keeps the last row off the screen edge even where the
+       safe-area inset is zero, which is most Android phones and any browser
+       without a home indicator. */
+    padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
     animation: sheet-rise 180ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  /* A grab handle says "this dismisses". On a desktop popover the surrounding
+     page is visibly clickable; a full-width bottom sheet gives no such hint. */
+  .sheet::before {
+    content: "";
+    display: block;
+    width: 2.25rem;
+    height: 0.25rem;
+    margin: 0.5rem auto 0;
+    border-radius: var(--r-full);
+    background: var(--c-line-strong);
   }
   .sheet-scrim {
     position: fixed;
@@ -314,6 +328,9 @@
       border-radius: var(--r-md);
       padding-bottom: 0;
       animation: none;
+    }
+    .sheet::before {
+      display: none;
     }
     /* For a sheet with no anchor to sit under the header's right edge. */
     .sheet-corner {
@@ -425,6 +442,13 @@
     }
     .sheet-item {
       min-height: 2.875rem;
+    }
+    /* A native checkbox renders at ~13px and ignores font-size, which is well
+       under any usable tap target. Every admin screen has a row of these. */
+    input[type="checkbox"],
+    input[type="radio"] {
+      width: 1.25rem;
+      height: 1.25rem;
     }
   }
 

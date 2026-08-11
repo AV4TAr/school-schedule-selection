@@ -45,7 +45,7 @@ export function PrintView({
 
   return (
     <div className="space-y-7">
-      <header className="flex items-start justify-between gap-4 border-b border-line pb-4">
+      <header className="flex flex-wrap items-start justify-between gap-4 border-b border-line pb-4">
         <div>
           <h1 className="page-title">{t.print.title}</h1>
           <p className="mt-1 text-xs text-muted">
@@ -74,120 +74,127 @@ export function PrintView({
 
       <section className="space-y-2">
         <h2 className="section-title">{t.print.byShift}</h2>
-        <table className="w-full border-collapse">
-          <thead>
-            <tr>
-              <th className={`${HEAD} w-40`}>{t.nav.shifts}</th>
-              {weekdays.map((day) => (
-                <th key={day} className={HEAD}>
-                  {weekday(day)}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.key}>
-                <th className={`${CELL} bg-raised/30 text-left`}>
-                  <div className="font-semibold">{row.name}</div>
-                  <div className="num text-2xs font-normal text-muted">
-                    {range(row.startMin, row.endMin)}
-                  </div>
-                </th>
-                {weekdays.map((day) => {
-                  const shift = row.byWeekday.get(day);
-                  if (!shift) {
+        {/* Laid out for paper: six columns never fit a phone, so on screen the
+            table scrolls inside its own box rather than dragging the whole page
+            sideways. Print sees the table exactly as before. */}
+        <div className="overflow-x-auto print:overflow-visible">
+          <table className="w-full min-w-[34rem] border-collapse print:min-w-0">
+            <thead>
+              <tr>
+                <th className={`${HEAD} w-40`}>{t.nav.shifts}</th>
+                {weekdays.map((day) => (
+                  <th key={day} className={HEAD}>
+                    {weekday(day)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.key}>
+                  <th className={`${CELL} bg-raised/30 text-left`}>
+                    <div className="font-semibold">{row.name}</div>
+                    <div className="num text-2xs font-normal text-muted">
+                      {range(row.startMin, row.endMin)}
+                    </div>
+                  </th>
+                  {weekdays.map((day) => {
+                    const shift = row.byWeekday.get(day);
+                    if (!shift) {
+                      return (
+                        <td key={day} className={`${CELL} text-faint/50`}>
+                          ·
+                        </td>
+                      );
+                    }
+                    const names = assignments
+                      .filter((a) => a.shiftId === shift.id)
+                      .map((a) => personById.get(a.personId)?.name ?? "?")
+                      .sort();
+                    const gap = gapByShift.get(shift.id);
                     return (
-                      <td key={day} className={`${CELL} text-faint/50`}>
-                        ·
+                      <td key={day} className={CELL}>
+                        {names.length > 0 ? (
+                          <ul>
+                            {names.map((name) => (
+                              <li key={name}>{name}</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <span className="text-faint">{t.schedule.unstaffed}</span>
+                        )}
+                        {gap && (
+                          <span
+                            className={`num mt-1 inline-block text-2xs font-semibold ${
+                              gap.critical ? "text-danger" : "text-warn"
+                            }`}
+                          >
+                            {gap.assigned}/{gap.requiredIdeal}
+                          </span>
+                        )}
                       </td>
                     );
-                  }
-                  const names = assignments
-                    .filter((a) => a.shiftId === shift.id)
-                    .map((a) => personById.get(a.personId)?.name ?? "?")
-                    .sort();
-                  const gap = gapByShift.get(shift.id);
-                  return (
-                    <td key={day} className={CELL}>
-                      {names.length > 0 ? (
-                        <ul>
-                          {names.map((name) => (
-                            <li key={name}>{name}</li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <span className="text-faint">{t.schedule.unstaffed}</span>
-                      )}
-                      {gap && (
-                        <span
-                          className={`num mt-1 inline-block text-2xs font-semibold ${
-                            gap.critical ? "text-danger" : "text-warn"
-                          }`}
-                        >
-                          {gap.assigned}/{gap.requiredIdeal}
-                        </span>
-                      )}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <section className="space-y-2 break-inside-avoid">
         <h2 className="section-title">{t.print.byPerson}</h2>
-        <table className="w-full border-collapse">
-          <thead>
-            <tr>
-              <th className={`${HEAD} w-40`}>{t.schedule.person}</th>
-              {weekdays.map((day) => (
-                <th key={day} className={HEAD}>
-                  {weekday(day)}
-                </th>
-              ))}
-              <th className={`${HEAD} text-right`}>{t.schedule.hours}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {people
-              .filter((p) => p.active)
-              .map((person) => {
-                const workload = analysis.workloads.find((w) => w.personId === person.id);
-                return (
-                  <tr key={person.id}>
-                    <th className={`${CELL} bg-raised/30 text-left font-semibold`}>
-                      {person.name}
-                    </th>
-                    {weekdays.map((day) => {
-                      const mine = assignments
-                        .filter((a) => a.personId === person.id)
-                        .map((a) => shiftById.get(a.shiftId))
-                        .filter((s): s is Shift => Boolean(s) && s!.weekday === day)
-                        .sort((a, b) => a.startMin - b.startMin);
-                      return (
-                        <td key={day} className={`${CELL} num text-xs`}>
-                          {mine.length === 0 ? (
-                            <span className="text-faint/50">·</span>
-                          ) : (
-                            // Consecutive shifts read better as one block of time.
-                            mergeBlocks(mine).map((block, i) => (
-                              <div key={i}>{range(block[0], block[1])}</div>
-                            ))
-                          )}
-                        </td>
-                      );
-                    })}
-                    <td className={`${CELL} num text-right font-semibold`}>
-                      {toHours(workload?.totalMinutes ?? 0)} h
-                    </td>
-                  </tr>
-                );
-              })}
-          </tbody>
-        </table>
+        <div className="overflow-x-auto print:overflow-visible">
+          <table className="w-full min-w-[34rem] border-collapse print:min-w-0">
+            <thead>
+              <tr>
+                <th className={`${HEAD} w-40`}>{t.schedule.person}</th>
+                {weekdays.map((day) => (
+                  <th key={day} className={HEAD}>
+                    {weekday(day)}
+                  </th>
+                ))}
+                <th className={`${HEAD} text-right`}>{t.schedule.hours}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {people
+                .filter((p) => p.active)
+                .map((person) => {
+                  const workload = analysis.workloads.find((w) => w.personId === person.id);
+                  return (
+                    <tr key={person.id}>
+                      <th className={`${CELL} bg-raised/30 text-left font-semibold`}>
+                        {person.name}
+                      </th>
+                      {weekdays.map((day) => {
+                        const mine = assignments
+                          .filter((a) => a.personId === person.id)
+                          .map((a) => shiftById.get(a.shiftId))
+                          .filter((s): s is Shift => Boolean(s) && s!.weekday === day)
+                          .sort((a, b) => a.startMin - b.startMin);
+                        return (
+                          <td key={day} className={`${CELL} num text-xs`}>
+                            {mine.length === 0 ? (
+                              <span className="text-faint/50">·</span>
+                            ) : (
+                              // Consecutive shifts read better as one block of time.
+                              mergeBlocks(mine).map((block, i) => (
+                                <div key={i}>{range(block[0], block[1])}</div>
+                              ))
+                            )}
+                          </td>
+                        );
+                      })}
+                      <td className={`${CELL} num text-right font-semibold`}>
+                        {toHours(workload?.totalMinutes ?? 0)} h
+                      </td>
+                    </tr>
+                  );
+                })}
+            </tbody>
+          </table>
+        </div>
         <p className="text-xs text-muted">
           {t.schedule.spread} <span className="num">{duration(analysis.spreadMinutes)}</span>
           {" · "}
