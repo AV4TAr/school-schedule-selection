@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useMemo, useTransition } from "react";
+import { createPortal } from "react-dom";
 
 import {
   addAssignment,
@@ -179,7 +180,7 @@ export function ScheduleView({
                       return (
                         <td key={day} className="p-1.5 align-top">
                           <div
-                            className={`flex flex-col gap-0.5 rounded-[var(--r-md)] border-l-2 py-1 pr-1 pl-1.5 ${
+                            className={`group/cell flex flex-col gap-0.5 rounded-[var(--r-md)] border-l-2 py-1 pr-1 pl-1.5 ${
                               gap?.critical
                                 ? "border-l-[var(--c-danger)] bg-danger-soft/45"
                                 : gap
@@ -250,10 +251,15 @@ export function ScheduleView({
 
                             {gap && (
                               <span
-                                className={`pill mt-0.5 self-start ${
+                                title={fmt(
+                                  gap.critical ? t.schedule.criticalGapHint : t.schedule.idealGapHint,
+                                  { assigned: gap.assigned, ideal: gap.requiredIdeal },
+                                )}
+                                className={`pill mt-0.5 self-start cursor-help ${
                                   gap.critical ? "pill-danger" : "pill-warn"
                                 }`}
                               >
+                                <span aria-hidden>{gap.critical ? "▾" : "!"}</span>
                                 <span className="num">
                                   {gap.assigned}/{gap.requiredIdeal}
                                 </span>
@@ -435,9 +441,10 @@ function CoverageBanner({
 }) {
   const { t, fmt, range, weekday } = useI18n();
   const shiftById = new Map(shifts.map((s) => [s.id, s]));
-  const { gaps, conflicts } = analysis;
-
-  const { violations } = analysis;
+  const { gaps, conflicts, violations } = analysis;
+  // Collapsed by default: every gap already has its own icon in the grid, so
+  // this list is supplementary detail, not the primary signal.
+  const [expanded, setExpanded] = useState(false);
 
   if (gaps.length === 0 && conflicts.length === 0 && violations.length === 0) {
     return (
@@ -451,15 +458,28 @@ function CoverageBanner({
   const critical = gaps.filter((g) => g.critical);
   const soft = gaps.filter((g) => !g.critical);
 
+  const hasList = gaps.length > 0;
+
   return (
     <section className="card overflow-hidden">
-      <div className="flex items-center gap-2 border-b border-line px-4 py-2.5">
+      <button
+        type="button"
+        disabled={!hasList}
+        aria-expanded={expanded}
+        onClick={() => setExpanded((v) => !v)}
+        className="flex w-full items-center gap-2 border-b border-line px-4 py-2.5 text-left disabled:cursor-default"
+      >
         <h2 className="text-sm font-semibold">{t.schedule.coverageTitle}</h2>
         {critical.length > 0 && (
           <span className="pill pill-danger">{critical.length}</span>
         )}
         {soft.length > 0 && <span className="pill pill-warn">{soft.length}</span>}
-      </div>
+        {hasList && (
+          <span aria-hidden className="ml-auto text-faint">
+            {expanded ? "▴" : "▾"}
+          </span>
+        )}
+      </button>
 
       {conflicts.length > 0 && (
         <p className="border-b border-danger-line bg-danger-soft px-4 py-2 text-base text-danger">
@@ -486,33 +506,35 @@ function CoverageBanner({
         </ul>
       )}
 
-      <ul className="divide-y divide-line">
-        {[...critical, ...soft].map((gap) => {
-          const shift = shiftById.get(gap.shiftId);
-          if (!shift) return null;
-          return (
-            <li
-              key={gap.shiftId}
-              className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 text-base"
-            >
-              <span className={`pill ${gap.critical ? "pill-danger" : "pill-warn"}`}>
-                {gap.critical ? t.schedule.criticalGap : t.schedule.idealGap}
-              </span>
-              <span className="font-medium">{weekday(shift.weekday)}</span>
-              <span className="text-muted">{shift.name}</span>
-              <span className="num text-xs text-faint">
-                {range(shift.startMin, shift.endMin)}
-              </span>
-              <span className="num ml-auto text-xs text-muted">
-                {fmt(t.schedule.needed, {
-                  assigned: gap.assigned,
-                  ideal: gap.requiredIdeal,
-                })}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
+      {expanded && (
+        <ul className="divide-y divide-line">
+          {[...critical, ...soft].map((gap) => {
+            const shift = shiftById.get(gap.shiftId);
+            if (!shift) return null;
+            return (
+              <li
+                key={gap.shiftId}
+                className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 text-base"
+              >
+                <span className={`pill ${gap.critical ? "pill-danger" : "pill-warn"}`}>
+                  {gap.critical ? t.schedule.criticalGap : t.schedule.idealGap}
+                </span>
+                <span className="font-medium">{weekday(shift.weekday)}</span>
+                <span className="text-muted">{shift.name}</span>
+                <span className="num text-xs text-faint">
+                  {range(shift.startMin, shift.endMin)}
+                </span>
+                <span className="num ml-auto text-xs text-muted">
+                  {fmt(t.schedule.needed, {
+                    assigned: gap.assigned,
+                    ideal: gap.requiredIdeal,
+                  })}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </section>
   );
 }
@@ -520,6 +542,10 @@ function CoverageBanner({
 /**
  * Adds a person to a shift by hand. Only lists people whose availability covers
  * the shift — manual control does not extend to breaking a hard rule.
+ *
+ * The menu is portalled to <body> and positioned in viewport coordinates: the
+ * grid scrolls horizontally, and `overflow-x: auto` clips a normally-positioned
+ * dropdown out of existence.
  */
 function AddPersonMenu({
   candidates,
@@ -534,53 +560,93 @@ function AddPersonMenu({
 }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
+  const [anchor, setAnchor] = useState<{ top: number; left: number } | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  // Anything that moves the button invalidates the position, and re-measuring
+  // mid-scroll is not worth it for a menu this small.
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const toggle = () => {
+    if (open) return setOpen(false);
+    const rect = buttonRef.current?.getBoundingClientRect();
+    if (rect) setAnchor({ top: rect.bottom + 4, left: rect.left });
+    setOpen(true);
+  };
 
   return (
-    <div className="relative">
+    <>
+      {/* Deliberately small and quiet: one of these sits in every cell, and at
+          full width with a label they out-shouted the names they sit under. */}
       <button
+        ref={buttonRef}
         type="button"
         disabled={disabled}
         title={t.hints.addToShift}
+        aria-label={t.schedule.addPerson}
         aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-        className="w-full rounded-[var(--r-sm)] border border-dashed border-line px-2 py-0.5 text-left text-2xs text-faint transition hover:border-accent hover:text-accent"
+        onClick={toggle}
+        className={`flex h-4.5 w-6 items-center justify-center rounded-[3px] text-xs leading-none transition ${
+          open
+            ? "bg-accent-soft text-accent"
+            : "text-faint/40 group-hover/cell:text-muted hover:!bg-accent-soft hover:!text-accent focus-visible:text-accent"
+        }`}
       >
-        + {t.schedule.addPerson}
+        +
       </button>
 
-      {open && (
-        <>
-          {/* Click anywhere else to dismiss. */}
-          <button
-            type="button"
-            aria-hidden
-            tabIndex={-1}
-            className="fixed inset-0 z-40 cursor-default"
-            onClick={() => setOpen(false)}
-          />
-          <div className="absolute top-full left-0 z-50 mt-1 min-w-40 rounded-[var(--r-md)] border border-line bg-surface p-1 shadow-[var(--e-2)]">
-            {candidates.length === 0 ? (
-              <p className="px-2 py-1.5 text-2xs text-muted">{t.schedule.noCandidates}</p>
-            ) : (
-              candidates.map((person) => (
-                <button
-                  key={person.id}
-                  type="button"
-                  data-person={hueOf.get(person.id) ?? 0}
-                  className="chip"
-                  onClick={() => {
-                    setOpen(false);
-                    onAdd(person.id);
-                  }}
-                >
-                  <span aria-hidden className="chip-dot" />
-                  {person.name}
-                </button>
-              ))
-            )}
-          </div>
-        </>
-      )}
-    </div>
+      {open &&
+        anchor &&
+        createPortal(
+          <>
+            <button
+              type="button"
+              aria-hidden
+              tabIndex={-1}
+              className="fixed inset-0 z-40 cursor-default"
+              onClick={() => setOpen(false)}
+            />
+            <div
+              role="menu"
+              style={{ top: anchor.top, left: anchor.left }}
+              className="fixed z-50 min-w-40 rounded-[var(--r-md)] border border-line bg-surface p-1 shadow-[var(--e-2)]"
+            >
+              {candidates.length === 0 ? (
+                <p className="px-2 py-1.5 text-2xs text-muted">{t.schedule.noCandidates}</p>
+              ) : (
+                candidates.map((person) => (
+                  <button
+                    key={person.id}
+                    type="button"
+                    role="menuitem"
+                    data-person={hueOf.get(person.id) ?? 0}
+                    className="chip"
+                    onClick={() => {
+                      setOpen(false);
+                      onAdd(person.id);
+                    }}
+                  >
+                    <span aria-hidden className="chip-dot" />
+                    {person.name}
+                  </button>
+                ))
+              )}
+            </div>
+          </>,
+          document.body,
+        )}
+    </>
   );
 }

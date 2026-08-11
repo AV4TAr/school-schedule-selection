@@ -23,6 +23,48 @@ npm run design:build                     # rebuild design-system/dist previews
 `DATABASE_PATH` overrides the SQLite location (`:memory:` works) — useful for
 scripts that must not touch `data/schedule.db`.
 
+## Browser Automation
+
+Use `agent-browser` for web automation. Run `agent-browser --help` for all commands.
+
+Core workflow:
+
+1. `agent-browser open <url>` - Navigate to page
+2. `agent-browser snapshot -i` - Get interactive elements with refs (@e1, @e2)
+3. `agent-browser click @e1` / `fill @e2 "text"` - Interact using refs
+4. Re-snapshot after page changes
+
+Refs go stale on every page change — re-snapshot before the next ref interaction.
+The browser persists across commands; `agent-browser close` when done.
+
+For this app specifically: the dev server is at `http://127.0.0.1:3000`. Use
+`agent-browser screenshot <path> --full` (path first, then flags) to check a
+change actually renders — the HTML alone will not tell you a layout is too
+crowded or a control is invisible.
+
+**`next.config.ts` sets `allowedDevOrigins: ["127.0.0.1", "localhost"]`.**
+Without it, Next 16's dev-origin guard 403s the JS chunks when a tool reaches
+the server as `127.0.0.1`, which breaks hydration silently — every click
+handler on the page looks dead, with no console error. If clicks stop working
+during automated testing, check `agent-browser network requests` for 403s
+before assuming an app bug; then `agent-browser close --all` and reopen fresh,
+since a tab that loaded before the fix keeps its broken chunks.
+
+Native `<input type="time">` is unreliable to drive via CDP: synthetic
+digit keypresses can update the visible DOM value while React's tracked state
+silently stays stale, so the commit-on-blur never fires and nothing is saved —
+confirm any such edit actually persisted (re-read the page, or check the dev
+server log for the resulting server action call) rather than trusting the
+screenshot. If keypresses won't stick, calling the input's React fiber
+`onChange`/`onBlur` directly (via its `__reactProps$*` key) is the reliable
+fallback.
+
+**Never write to `data/schedule.db` directly from a script** — go through the
+app's own actions (`src/app/actions.ts`) or the UI, even when scripting. It
+holds the school's real schedule, and the auto-mode classifier will (correctly)
+block a raw write; treat that block as a signal to ask the user, not to find a
+workaround. Read-only queries against the real file are fine.
+
 ## Architecture
 
 A weekly supervision rota builder. Times are **minutes since midnight**
@@ -64,10 +106,17 @@ page modules in parallel build workers that otherwise race for the write lock.
 `bootstrap.ts` runs migrations and seeds on first use; every query in
 `queries.ts` calls `ensureDatabase()` first.
 
-The Shifts screen groups shifts by `(name, start, end)` and edits the whole
-group at once, with weekday toggles (`updateShiftGroup`, `setShiftWeekday`,
-`deleteShiftGroup`). The per-shift actions still exist and still work; the
-grouped ones are what the UI uses.
+The Shifts screen groups by **name** at the top level; within a name, shifts
+are further grouped into **segments** by `(start, end)` — a name can have
+several non-overlapping segments (`updateShiftGroup`, `setShiftWeekday`,
+`deleteShiftGroup`, `addShiftSegment`). `setShiftWeekday` enforces the
+non-overlap invariant itself: claiming a weekday for one segment deletes it
+from any other segment of the same name in the same transaction, so two
+segments can never both claim a day even momentarily. `addShiftSegment` picks
+an unclaimed weekday if one exists, or steals one from the largest existing
+segment if the name already covers all five days — never inserts without first
+guaranteeing the new row's weekday is free. The per-shift (single-weekday)
+actions still exist; the grouped ones are what the UI uses.
 
 ### Data flow
 

@@ -18,7 +18,7 @@ import {
 import { isAvailable } from "@/lib/availability";
 import { popUndo, pushUndo, type UndoLabel } from "@/lib/db/undo";
 import { solve } from "@/lib/solver";
-import type { Preference, SolverSettings, Weekday } from "@/lib/types";
+import { SCHOOL_WEEKDAYS, type Preference, type SolverSettings, type Weekday } from "@/lib/types";
 
 function refresh() {
   revalidatePath("/", "layout");
@@ -338,7 +338,13 @@ export async function updateShiftGroup(
   refresh();
 }
 
-/** Turn one weekday of a shift group on or off. */
+/**
+ * Turn one weekday of a shift *segment* (a name + specific time range) on or
+ * off. A shift name can have several segments — e.g. Recess at one time
+ * Mon/Tue/Fri and a different time Wed/Thu — but a given weekday can only
+ * belong to ONE of them. Enabling a day here therefore first removes it from
+ * any other segment sharing the same name, so segments can never overlap.
+ */
 export async function setShiftWeekday(
   ids: number[],
   weekday: Weekday,
@@ -348,39 +354,113 @@ export async function setShiftWeekday(
   const template = db.select().from(shifts).where(eq(shifts.id, ids[0])).get();
   if (!template) return;
 
-  const existing = db
+  const sameNameShifts = db
     .select()
     .from(shifts)
-    .all()
-    .find(
-      (s) =>
-        s.weekday === weekday &&
-        s.name === template.name &&
-        s.startMin === template.startMin &&
-        s.endMin === template.endMin,
-    );
+    .where(eq(shifts.name, template.name))
+    .all();
+
+  const existingHere = sameNameShifts.find(
+    (s) =>
+      s.weekday === weekday &&
+      s.startMin === template.startMin &&
+      s.endMin === template.endMin,
+  );
 
   if (enabled) {
-    if (existing) return;
+    if (existingHere) return;
+
+    // Claiming this weekday takes it away from any other segment of the same
+    // name — that is what keeps segments from overlapping.
+    const claimedElsewhere = sameNameShifts.filter(
+      (s) => s.weekday === weekday && !(s.startMin === template.startMin && s.endMin === template.endMin),
+    );
+
     pushUndo({ key: "addShift", params: { shift: template.name } });
-    db.insert(shifts)
+    db.transaction((tx) => {
+      // Each row is exactly one weekday, so reclaiming it is a plain delete —
+      // whatever segment it belonged to shrinks by one day (or disappears, if
+      // this was its last one).
+      for (const stolen of claimedElsewhere) {
+        tx.delete(shifts).where(eq(shifts.id, stolen.id)).run();
+      }
+      tx.insert(shifts)
+        .values({
+          name: template.name,
+          weekday,
+          startMin: template.startMin,
+          endMin: template.endMin,
+          requiredMin: template.requiredMin,
+          requiredIdeal: template.requiredIdeal,
+          active: template.active,
+        })
+        .run();
+    });
+  } else {
+    if (!existingHere) return;
+    // Never leave a segment with no days at all — delete it instead.
+    if (ids.length <= 1) return;
+    pushUndo({ key: "deleteShift", params: { shift: template.name } });
+    db.delete(shifts).where(eq(shifts.id, existingHere.id)).run();
+  }
+  refresh();
+}
+
+/**
+ * Add a new, empty (no weekdays yet) segment under an existing shift name,
+ * so the user can then toggle days onto it — e.g. giving Thursday a different
+ * time than the rest of the week without creating a same-named but disjoint
+ * top-level shift.
+ */
+export async function addShiftSegment(name: string) {
+  const sameName = db.select().from(shifts).where(eq(shifts.name, name)).all();
+  if (sameName.length === 0) return;
+  const template = sameName[0];
+
+  // Every shift row owns exactly one weekday, and a row can't be inserted
+  // without one — so the new segment needs a day from somewhere. Prefer a day
+  // nobody has claimed; if the name already covers all five (the common case,
+  // e.g. Recess running every day), take one from whichever existing segment
+  // currently holds the most, so no segment is ever left empty by this.
+  const claimed = new Set(sameName.map((s) => s.weekday));
+  const free = SCHOOL_WEEKDAYS.find((d) => !claimed.has(d));
+
+  pushUndo({ key: "addShift", params: { shift: name } });
+
+  let weekday: Weekday = free as Weekday;
+
+  db.transaction((tx) => {
+    if (free === undefined) {
+      const bySegment = new Map<string, typeof sameName>();
+      for (const s of sameName) {
+        const key = `${s.startMin}|${s.endMin}`;
+        const list = bySegment.get(key);
+        if (list) list.push(s);
+        else bySegment.set(key, [s]);
+      }
+      const largest = [...bySegment.values()].sort((a, b) => b.length - a.length)[0];
+      // Never drain a segment down to zero days taking from it.
+      const donor = largest.length > 1 ? largest[largest.length - 1] : sameName[0];
+      weekday = donor.weekday as Weekday;
+      tx.delete(shifts).where(eq(shifts.id, donor.id)).run();
+    }
+
+    tx.insert(shifts)
       .values({
-        name: template.name,
+        name,
         weekday,
-        startMin: template.startMin,
-        endMin: template.endMin,
+        // Placeholder time, deliberately not colliding with any existing
+        // segment of this name — the user retimes it via the segment's own
+        // fields, and the day-toggle strip lets them pick the real day.
+        startMin: template.endMin,
+        endMin: Math.min(template.endMin + 60, 23 * 60 + 59),
         requiredMin: template.requiredMin,
         requiredIdeal: template.requiredIdeal,
         active: template.active,
       })
       .run();
-  } else {
-    if (!existing) return;
-    // Never leave a group with no days at all — delete the group instead.
-    if (ids.length <= 1) return;
-    pushUndo({ key: "deleteShift", params: { shift: template.name } });
-    db.delete(shifts).where(eq(shifts.id, existing.id)).run();
-  }
+  });
+
   refresh();
 }
 

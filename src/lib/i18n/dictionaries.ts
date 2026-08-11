@@ -71,6 +71,8 @@ const en = {
     needed: "{assigned} of {ideal} needed",
     criticalGap: "Understaffed",
     idealGap: "Below preferred",
+    criticalGapHint: "Understaffed: {assigned} of {ideal} needed — below the minimum",
+    idealGapHint: "Below preferred: {assigned} of {ideal} needed — meets the minimum, short of ideal",
     coverageTitle: "Coverage warnings",
     coverageOk: "Every shift meets its minimum.",
     conflicts:
@@ -135,6 +137,9 @@ const en = {
     lastDayHint: "A shift needs at least one day — remove the shift instead",
     groupHint:
       "Shifts that share a name and time are edited together; use the day toggles to change which weekdays they run on.",
+    segmentHint:
+      "A shift name can have more than one segment — different days at a different time, headcount, or both. A weekday only ever belongs to one segment: claiming it there takes it away from wherever else it was.",
+    addSegment: "Add time variant",
     invalidRange: "The end time must be after the start time.",
     invalidCounts: "The preferred headcount cannot be below the minimum.",
   },
@@ -166,6 +171,9 @@ const en = {
   hints: {
     generate:
       "Re-solve the whole week. Locked assignments are kept; every other assignment is recalculated.",
+    addSegment: "Add another time range for this shift, on days not already covered",
+    addSegmentDisabled: "This shift only has one day — nothing to split off yet",
+    stealDay: "Already scheduled in another time range for this shift — click to move it here",
     print: "Open a clean version laid out for printing or sharing",
     printNow: "Send this page to the printer",
     back: "Back to the schedule",
@@ -299,6 +307,8 @@ const es: Dictionary = {
     needed: "{assigned} de {ideal} necesarias",
     criticalGap: "Falta personal",
     idealGap: "Por debajo de lo ideal",
+    criticalGapHint: "Falta personal: {assigned} de {ideal} necesarias — por debajo del mínimo",
+    idealGapHint: "Por debajo de lo ideal: {assigned} de {ideal} necesarias — cumple el mínimo, falta para el ideal",
     coverageTitle: "Alertas de cobertura",
     coverageOk: "Todos los turnos cumplen su mínimo.",
     conflicts:
@@ -364,6 +374,9 @@ const es: Dictionary = {
     lastDayHint: "Un turno necesita al menos un día — quitá el turno en su lugar",
     groupHint:
       "Los turnos con el mismo nombre y horario se editan juntos; usá los botones de día para cambiar en qué días se hacen.",
+    segmentHint:
+      "Un turno puede tener más de un tramo: días distintos con otro horario, otra cantidad de personal, o ambos. Cada día pertenece a un solo tramo — asignarlo acá se lo quita a donde estuviera antes.",
+    addSegment: "Agregar variante horaria",
     invalidRange: "La hora de fin debe ser posterior a la de inicio.",
     invalidCounts: "El ideal no puede ser menor que el mínimo.",
   },
@@ -395,6 +408,9 @@ const es: Dictionary = {
   hints: {
     generate:
       "Vuelve a resolver la semana entera. Lo fijado se mantiene; todo el resto se recalcula.",
+    addSegment: "Agrega otro horario para este turno, en días que todavía no tengan uno",
+    addSegmentDisabled: "Este turno solo tiene un día — todavía no hay nada para separar",
+    stealDay: "Ya está en otro horario de este turno — hacé clic para moverlo acá",
     print: "Abre una versión limpia, preparada para imprimir o compartir",
     printNow: "Envía esta página a la impresora",
     back: "Volver al horario",

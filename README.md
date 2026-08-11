@@ -43,7 +43,7 @@ and is not covered by the in-app undo.
 | --- | --- |
 | **Schedule** | Generates the week, flags coverage gaps, shows hours per person. Add or remove people by hand, and 🔒 lock anyone so the next generate keeps them. |
 | **Staff** | People, their availability windows, and how they feel about each one. |
-| **Shifts** | The slots needing supervision: times, headcount, and which weekdays they run on. |
+| **Shifts** | The slots needing supervision. A shift name can have several **segments** — e.g. Recess running one time Mon–Wed and a different time Thu–Fri — each with its own hours, headcount and weekdays. A weekday belongs to exactly one segment at a time; claiming it for one takes it away from wherever it was. |
 | **Settings** | The hard rules (max wait between shifts, tolerated overlap) and the solver's priorities. |
 | **Print view** | A clean by-shift and by-person grid for printing or sharing. |
 
