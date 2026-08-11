@@ -226,6 +226,13 @@ grepping for `light-dark` in the output.
 `THEME_INIT_SCRIPT` is inlined in `<head>` to stamp the attribute before first
 paint. Without it a dark-theme user gets a flash of light on every navigation.
 
+That script rewrites `data-theme` *before* React hydrates, so the server's
+`light` and the live DOM's `dark` legitimately disagree for anyone who picked a
+theme — which React reports as a hydration mismatch. `<html>` therefore carries
+`suppressHydrationWarning`, and it is load-bearing, not cosmetic: removing it
+brings the error straight back. `<head>` carries it too, for browser extensions
+that inject or rewrite scripts there before React loads.
+
 ### Undo
 
 `src/lib/db/undo.ts`. Each mutating action calls `pushUndo({ key, params })`

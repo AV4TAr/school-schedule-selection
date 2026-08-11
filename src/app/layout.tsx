@@ -18,9 +18,16 @@ export const metadata: Metadata = {
  */
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" data-theme={DEFAULT_THEME}>
-      <head>
-        {/* Applies the stored theme before first paint, so there is no flash. */}
+    // suppressHydrationWarning is required, not cosmetic: the script below
+    // deliberately rewrites `data-theme` before React hydrates, so the server's
+    // "light" and the live DOM's "dark" will legitimately disagree for anyone
+    // who picked a theme. Without this, React reports that as a mismatch.
+    // It suppresses only this element's own attributes, not the whole tree.
+    <html lang="en" data-theme={DEFAULT_THEME} suppressHydrationWarning>
+      <head suppressHydrationWarning>
+        {/* Applies the stored theme before first paint, so there is no flash.
+            The extra suppression here is for browser extensions, which commonly
+            inject or rewrite scripts in <head> before React loads. */}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body className="min-h-screen">
