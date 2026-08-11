@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 
 import { ScheduleNav } from "@/components/ScheduleNav";
 import { getScheduleByCode } from "@/lib/db/queries";
-import { getUndoLabels } from "@/lib/db/undo";
+import { getRedoLabels, getUndoLabels } from "@/lib/db/undo";
 import { isAdmin } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +33,7 @@ export default async function ScheduleLayout({
         scheduleName={schedule.name}
         isAdmin={admin}
         undoLabels={admin ? getUndoLabels(schedule.id) : []}
+        redoLabels={admin ? getRedoLabels(schedule.id) : []}
       />
       <main className="mx-auto max-w-6xl px-6 py-7">{children}</main>
     </>

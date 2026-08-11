@@ -13,7 +13,7 @@ import {
   getSolverSettings,
   saveSolverSettings,
 } from "@/lib/db/queries";
-import { popUndo, pushUndo, type UndoLabel } from "@/lib/db/undo";
+import { popRedo, popUndo, pushUndo, type UndoLabel } from "@/lib/db/undo";
 import { isAvailable } from "@/lib/availability";
 import { requireAdmin } from "@/lib/session";
 import { solve } from "@/lib/solver";
@@ -59,12 +59,24 @@ const ownedPerson = (scheduleId: number, id: number) =>
 const ownedWindow = (scheduleId: number, id: number) =>
   and(eq(availability.id, id), eq(availability.scheduleId, scheduleId));
 
-// --- Undo -----------------------------------------------------------------
+// --- Undo / redo ------------------------------------------------------------
 
-/** Reverse the most recent action. Deliberately not itself undoable. */
+/**
+ * Reverse the most recent action. Deliberately not itself undoable — it
+ * doesn't call `pushUndo` — but the state it discards lands on the redo
+ * stack, so `redoLast` can bring it back.
+ */
 export async function undoLast(scheduleId: number) {
   await requireAdmin(scheduleId);
   const label = popUndo(scheduleId);
+  refresh();
+  return label;
+}
+
+/** Reapply the most recently undone action. Also not itself undoable. */
+export async function redoLast(scheduleId: number) {
+  await requireAdmin(scheduleId);
+  const label = popRedo(scheduleId);
   refresh();
   return label;
 }

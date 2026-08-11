@@ -3,9 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import { createNewSchedule } from "@/app/auth-actions";
+import { createNewSchedule, goToSchedule } from "@/app/auth-actions";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { normaliseCode } from "@/lib/auth-shared";
 import { useI18n } from "@/lib/i18n/context";
 import { LOCALES, type Locale } from "@/lib/i18n/dictionaries";
 
@@ -69,17 +68,18 @@ export function LandingPage() {
 
 function EnterCodeCard() {
   const { t } = useI18n();
-  const router = useRouter();
   const [code, setCode] = useState("");
   const [notFound, setNotFound] = useState(false);
   const [pending, startTransition] = useTransition();
 
   const submit = () => {
-    const clean = normaliseCode(code);
-    if (!clean) return setNotFound(true);
     setNotFound(false);
-    // Navigate straight to the schedule; an unknown code lands on its 404.
-    startTransition(() => router.push(`/s/${clean}`));
+    // Checks the code against the database before navigating, so a bad code
+    // shows an inline error here instead of landing the visitor on a 404.
+    startTransition(async () => {
+      const result = await goToSchedule(code);
+      if (!result.ok) setNotFound(true);
+    });
   };
 
   return (

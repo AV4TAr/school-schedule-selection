@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useTransition } from "react";
 
 import { signOut } from "@/app/auth-actions";
+import { RedoButton } from "@/components/RedoButton";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UndoButton } from "@/components/UndoButton";
 import type { UndoLabel } from "@/lib/db/undo";
@@ -24,12 +25,14 @@ export function ScheduleNav({
   scheduleName,
   isAdmin,
   undoLabels,
+  redoLabels,
 }: {
   scheduleId: number;
   code: string;
   scheduleName: string;
   isAdmin: boolean;
   undoLabels: UndoLabel[];
+  redoLabels: UndoLabel[];
 }) {
   const { t } = useI18n();
   const pathname = usePathname();
@@ -96,6 +99,7 @@ export function ScheduleNav({
           {isAdmin ? (
             <>
               <UndoButton scheduleId={scheduleId} labels={undoLabels} />
+              <RedoButton scheduleId={scheduleId} labels={redoLabels} />
               <button
                 type="button"
                 className="btn btn-sm"

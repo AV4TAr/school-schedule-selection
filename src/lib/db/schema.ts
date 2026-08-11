@@ -141,3 +141,20 @@ export const undoStack = sqliteTable(
   },
   (t) => [index("undo_schedule_idx").on(t.scheduleId)],
 );
+
+/**
+ * Redo history — the mirror image of `undo_stack`. Undoing a step pushes the
+ * state it just discarded here, so redo can restore it; any new mutating
+ * action clears this per schedule, since it invalidates that "future" branch.
+ */
+export const redoStack = sqliteTable(
+  "redo_stack",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    scheduleId: integer("schedule_id").notNull().default(1),
+    label: text("label").notNull(),
+    snapshot: text("snapshot").notNull(),
+    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  },
+  (t) => [index("redo_schedule_idx").on(t.scheduleId)],
+);
