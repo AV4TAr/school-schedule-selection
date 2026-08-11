@@ -86,14 +86,14 @@ export function ShiftsEditor({
 
   return (
     <div className="space-y-5">
-      <header className="flex flex-wrap items-start justify-between gap-4">
+      <header className="flex flex-col items-stretch gap-3 md:flex-row md:flex-wrap md:items-start md:justify-between md:gap-4">
         <div>
           <h1 className="page-title">{t.shifts.title}</h1>
           <p className="mt-1 text-base text-muted">{t.shifts.subtitle}</p>
         </div>
         <button
           type="button"
-          className="btn btn-primary"
+          className="btn btn-primary w-full md:w-auto"
           title={t.hints.addShift}
           disabled={pending}
           onClick={() =>
@@ -178,27 +178,33 @@ function NameGroupCard({
 
   return (
     <section className="card overflow-hidden">
-      <div className="flex flex-wrap items-center gap-2.5 border-b border-line bg-raised/50 px-4 py-2.5">
+      {/* Phone: the rename input owns a full-width row and the actions sit on a
+          second one. From `md` up the wrapper turns into `display: contents`,
+          so every control collapses back into the single inline row. */}
+      <div className="flex flex-col gap-2 border-b border-line bg-raised/50 px-3 py-3 md:flex-row md:flex-wrap md:items-center md:gap-2.5 md:px-4 md:py-2.5">
         <input
-          className="field w-44 text-sm font-semibold"
+          className="field w-full font-semibold md:w-44 md:text-sm"
+          aria-label={t.common.name}
           value={name}
           disabled={pending}
           onChange={(e) => setName(e.target.value)}
           onBlur={rename}
           onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
         />
-        <span className="pill">
-          {totalDays} {t.shifts.days}
-        </span>
-        <button
-          type="button"
-          className="btn btn-sm ml-auto"
-          title={canSplit ? t.hints.addSegment : t.hints.addSegmentDisabled}
-          disabled={pending || !canSplit}
-          onClick={() => run(() => void addShiftSegment(scheduleId, group.name))}
-        >
-          + {t.shifts.addSegment}
-        </button>
+        <div className="flex items-center gap-2.5 md:contents">
+          <span className="pill">
+            {totalDays} {t.shifts.days}
+          </span>
+          <button
+            type="button"
+            className="btn btn-sm ml-auto max-md:min-h-11 max-md:flex-1"
+            title={canSplit ? t.hints.addSegment : t.hints.addSegmentDisabled}
+            disabled={pending || !canSplit}
+            onClick={() => run(() => void addShiftSegment(scheduleId, group.name))}
+          >
+            + {t.shifts.addSegment}
+          </button>
+        </div>
       </div>
 
       <div className="divide-y divide-line">
@@ -260,117 +266,135 @@ function SegmentRow({
   const onlyDayInSegment = segment.weekdays.size <= 1;
 
   return (
-    <div className="flex flex-wrap items-end gap-3 px-4 py-3">
-      <div>
-        <label className="label">{t.common.from}</label>
-        <TimeField
-          value={segment.startMin}
-          disabled={pending}
-          onCommit={(startMin) => patch({ startMin })}
-        />
-      </div>
+    // Phone: one bordered block per segment, stacked inside the name card, so
+    // it stays obvious which times and weekdays belong together. From `md` up
+    // the block becomes `display: contents` and the fields fall back into the
+    // single inline row this screen has always had on a desktop.
+    <div className="px-3 py-3 md:flex md:flex-wrap md:items-end md:gap-3 md:px-4">
+      <div className="flex flex-col gap-3 rounded-[var(--r-md)] border border-line bg-raised/40 p-3 md:contents">
+        <div className="grid grid-cols-2 gap-3 md:contents">
+          <div className="min-w-0 max-md:[&>input]:w-full">
+            <label className="label">{t.common.from}</label>
+            <TimeField
+              value={segment.startMin}
+              disabled={pending}
+              onCommit={(startMin) => patch({ startMin })}
+            />
+          </div>
 
-      <div>
-        <label className="label">{t.common.to}</label>
-        <TimeField
-          value={segment.endMin}
-          disabled={pending}
-          onCommit={(endMin) => patch({ endMin })}
-        />
-      </div>
+          <div className="min-w-0 max-md:[&>input]:w-full">
+            <label className="label">{t.common.to}</label>
+            <TimeField
+              value={segment.endMin}
+              disabled={pending}
+              onCommit={(endMin) => patch({ endMin })}
+            />
+          </div>
+        </div>
 
-      <div className="w-20">
-        <label className="label" title={t.shifts.requiredMinHint}>
-          {t.shifts.requiredMin}
-        </label>
-        <input
-          type="number"
-          min={0}
-          className="field num text-right"
-          value={segment.requiredMin}
-          disabled={pending}
-          onChange={(e) => patch({ requiredMin: Number(e.target.value) })}
-        />
-      </div>
+        {/* Minimum and preferred headcount are easy to confuse and the gap
+            between them drives the solver's cost, so both keep a full label. */}
+        <div className="grid grid-cols-2 gap-3 md:contents">
+          <div className="w-20 min-w-0 max-md:w-auto">
+            <label className="label" title={t.shifts.requiredMinHint}>
+              {t.shifts.requiredMin}
+            </label>
+            <input
+              type="number"
+              min={0}
+              className="field num text-right"
+              value={segment.requiredMin}
+              disabled={pending}
+              onChange={(e) => patch({ requiredMin: Number(e.target.value) })}
+            />
+          </div>
 
-      <div className="w-20">
-        <label className="label" title={t.shifts.requiredIdealHint}>
-          {t.shifts.requiredIdeal}
-        </label>
-        <input
-          type="number"
-          min={0}
-          className="field num text-right"
-          value={segment.requiredIdeal}
-          disabled={pending}
-          onChange={(e) => patch({ requiredIdeal: Number(e.target.value) })}
-        />
-      </div>
+          <div className="w-20 min-w-0 max-md:w-auto">
+            <label className="label" title={t.shifts.requiredIdealHint}>
+              {t.shifts.requiredIdeal}
+            </label>
+            <input
+              type="number"
+              min={0}
+              className="field num text-right"
+              value={segment.requiredIdeal}
+              disabled={pending}
+              onChange={(e) => patch({ requiredIdeal: Number(e.target.value) })}
+            />
+          </div>
+        </div>
 
-      <div>
-        <label className="label">{t.shifts.runsOn}</label>
-        <div className="flex gap-1">
-          {SCHOOL_WEEKDAYS.map((day) => {
-            const on = segment.weekdays.has(day);
-            const ownedElsewhere = !on && takenElsewhere.has(day);
-            // Refuse to empty the last segment's last day — deleting the
-            // segment (or the whole shift) is the explicit action for that.
-            const locked = on && onlyDayInSegment && onlySegment;
-            return (
-              <button
-                key={day}
-                type="button"
-                aria-pressed={on}
-                disabled={pending || locked}
-                title={
-                  locked
-                    ? t.shifts.lastDayHint
-                    : ownedElsewhere
-                      ? t.hints.stealDay
-                      : weekday(day)
-                }
-                onClick={() => run(() => void setShiftWeekday(scheduleId, segment.ids, day, !on))}
-                className={`h-8 w-9 rounded-[var(--r-sm)] border text-2xs font-semibold transition ${
-                  on
-                    ? "border-accent bg-accent-soft text-accent"
-                    : ownedElsewhere
-                      ? "border-line border-dashed bg-raised text-faint hover:border-warn-line hover:text-warn"
-                      : "border-line bg-surface text-faint hover:border-line-strong hover:text-muted"
-                } ${locked ? "cursor-not-allowed opacity-70" : ""}`}
-              >
-                {weekday(day, "short")}
-              </button>
-            );
-          })}
+        <div>
+          <label className="label">{t.shifts.runsOn}</label>
+          <div className="grid grid-cols-5 gap-1 md:flex">
+            {SCHOOL_WEEKDAYS.map((day) => {
+              const on = segment.weekdays.has(day);
+              const ownedElsewhere = !on && takenElsewhere.has(day);
+              // Refuse to empty the last segment's last day — deleting the
+              // segment (or the whole shift) is the explicit action for that.
+              const locked = on && onlyDayInSegment && onlySegment;
+              return (
+                <button
+                  key={day}
+                  type="button"
+                  aria-pressed={on}
+                  disabled={pending || locked}
+                  title={
+                    locked
+                      ? t.shifts.lastDayHint
+                      : ownedElsewhere
+                        ? t.hints.stealDay
+                        : weekday(day)
+                  }
+                  onClick={() => run(() => void setShiftWeekday(scheduleId, segment.ids, day, !on))}
+                  className={`h-11 w-full rounded-[var(--r-sm)] border text-xs font-semibold transition md:h-8 md:w-9 md:text-2xs ${
+                    on
+                      ? "border-accent bg-accent-soft text-accent"
+                      : ownedElsewhere
+                        ? "border-line border-dashed bg-raised text-faint hover:border-warn-line hover:text-warn"
+                        : "border-line bg-surface text-faint hover:border-line-strong hover:text-muted"
+                  } ${locked ? "cursor-not-allowed opacity-70" : ""}`}
+                >
+                  {weekday(day, "short")}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 md:contents">
+          <label
+            className="flex cursor-pointer items-center gap-1.5 text-base text-muted max-md:min-h-11 max-md:gap-2 md:mb-2"
+            title={t.hints.shiftActive}
+          >
+            <input
+              type="checkbox"
+              className="max-md:h-5 max-md:w-5"
+              checked={segment.active}
+              disabled={pending}
+              onChange={(e) => patch({ active: e.target.checked })}
+            />
+            {t.common.active}
+          </label>
+
+          {/* Redundant on a phone, where the two time fields sit right above. */}
+          <span className="num mb-2 hidden text-xs text-faint md:inline">
+            {range(segment.startMin, segment.endMin)}
+          </span>
+
+          <button
+            type="button"
+            className="btn btn-ghost btn-danger btn-sm ml-auto max-md:min-h-11 max-md:text-danger md:mb-1.5"
+            title={t.hints.deleteShift}
+            disabled={pending}
+            onClick={() => {
+              if (confirm(t.common.confirmDelete)) run(() => void deleteShiftGroup(scheduleId, segment.ids));
+            }}
+          >
+            {t.shifts.deleteShift}
+          </button>
         </div>
       </div>
-
-      <label
-        className="mb-2 flex cursor-pointer items-center gap-1.5 text-base text-muted"
-        title={t.hints.shiftActive}
-      >
-        <input
-          type="checkbox"
-          checked={segment.active}
-          disabled={pending}
-          onChange={(e) => patch({ active: e.target.checked })}
-        />
-        {t.common.active}
-      </label>
-
-      <span className="num mb-2 text-xs text-faint">{range(segment.startMin, segment.endMin)}</span>
-
-      <button
-        type="button"
-        className="btn btn-ghost btn-danger btn-sm mb-1.5 ml-auto"
-        title={t.hints.deleteShift}
-        disabled={pending}
-        onClick={() => {
-          if (confirm(t.common.confirmDelete)) run(() => void deleteShiftGroup(scheduleId, segment.ids));
-        }}
-      >
-        {t.shifts.deleteShift}
-      </button>
     </div>
   );
 }

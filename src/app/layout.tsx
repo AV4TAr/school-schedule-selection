@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 
 import { Footer } from "@/components/Footer";
 import { LocaleProvider } from "@/lib/i18n/context";
@@ -10,6 +10,29 @@ export const metadata: Metadata = {
   title: "School Supervision Schedule",
   description:
     "Build and balance the weekly supervision rota from each person's availability.",
+};
+
+/**
+ * Without `width=device-width` a phone renders the page at ~980 CSS px and
+ * scales it down, which shrinks every control below the point of usability —
+ * no amount of responsive CSS below can recover from that, because the media
+ * queries never see the real viewport. This export is the load-bearing half of
+ * the mobile layout.
+ *
+ * `maximumScale` is left alone on purpose: pinch-zoom is an accessibility
+ * affordance, and the layouts are built so nobody needs it.
+ *
+ * `viewportFit: "cover"` lets the fixed tab bar paint into the home-indicator
+ * area, which it pads back out with `env(safe-area-inset-bottom)`.
+ */
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#fbfbfc" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0a0c" },
+  ],
 };
 
 /**

@@ -21,6 +21,9 @@ const en = {
     settings: "Settings",
     print: "Print view",
     myScheduleLink: "Staff view",
+    more: "More",
+    menu: "Menu",
+    close: "Close",
   },
   weekdays: {
     long: ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
@@ -101,6 +104,9 @@ const en = {
     spreadHint: "Difference between the most and least loaded person",
     fairShare: "Even split across everyone",
     totalStaffed: "Total staffed hours",
+    previousDay: "Previous day",
+    nextDay: "Next day",
+    notAvailable: "Not available",
   },
   people: {
     title: "Staff",
@@ -125,6 +131,7 @@ const en = {
     windowCountMany: "{count} windows",
     windowHint: "A shift is only offered to someone if a single window covers it end to end.",
     deletePerson: "Remove person",
+    deleteWindow: "Remove window",
     inactiveHint: "Inactive people are kept on record but never scheduled.",
     emptyState: "No staff yet. Add someone to begin.",
   },
@@ -353,6 +360,9 @@ const es: Dictionary = {
     settings: "Ajustes",
     print: "Vista de impresión",
     myScheduleLink: "Vista del personal",
+    more: "Más",
+    menu: "Menú",
+    close: "Cerrar",
   },
   weekdays: {
     long: ["", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"],
@@ -433,6 +443,9 @@ const es: Dictionary = {
     spreadHint: "Diferencia entre quien más y quien menos trabaja",
     fairShare: "Reparto parejo entre todas",
     totalStaffed: "Horas cubiertas en total",
+    previousDay: "Día anterior",
+    nextDay: "Día siguiente",
+    notAvailable: "No disponible",
   },
   people: {
     title: "Personal",
@@ -458,6 +471,7 @@ const es: Dictionary = {
     windowHint:
       "Un turno solo se le ofrece a alguien si una sola franja lo cubre de principio a fin.",
     deletePerson: "Quitar persona",
+    deleteWindow: "Quitar franja",
     inactiveHint: "Las personas inactivas quedan registradas pero no se les asignan turnos.",
     emptyState: "Todavía no hay personal. Agregá a alguien para empezar.",
   },

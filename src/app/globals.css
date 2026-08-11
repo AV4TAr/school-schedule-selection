@@ -51,6 +51,44 @@ body {
   font-size: var(--t-base);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  /* iOS inflates text in landscape unless told not to. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  /* The grey flash on tap reads as a rendering glitch next to the :active
+     styles the controls already carry. */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Skips the 300ms "is this a double-tap-to-zoom?" wait on every control. */
+button,
+a,
+label,
+summary,
+[role="button"] {
+  touch-action: manipulation;
+}
+
+/* Clears the fixed mobile tab bar, and the home indicator beneath it, so the
+   end of a long page is never stranded underneath it. The class is set on
+   <body> from the nav, because the footer lives outside <main> and needs the
+   same clearance. */
+body.has-tabbar {
+  padding-bottom: calc(4.25rem + env(safe-area-inset-bottom));
+}
+@media (min-width: 48rem) {
+  body.has-tabbar {
+    padding-bottom: 0;
+  }
+}
+
+/* Long, unbreakable strings (a person's name, a schedule code) must wrap
+   rather than push the page sideways: one horizontal scrollbar on the body
+   makes every screen feel broken. Wide content opts back in locally with its
+   own `overflow-x-auto` container. */
+@media (max-width: 47.999rem) {
+  body {
+    overflow-wrap: break-word;
+  }
 }
 
 @media print {

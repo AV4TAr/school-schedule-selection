@@ -222,4 +222,247 @@
   .chip[data-person="4"] { --chip: var(--c-p4); }
   .chip[data-person="5"] { --chip: var(--c-p5); }
   .chip[data-person="0"] { --chip: var(--c-p6); }
+
+  /* --- Segmented control -------------------------------------------------
+     One row, one choice, every option visible. Replaces a <select> wherever
+     there are two to four options: a native select on a phone costs a
+     full-screen picker and two taps to change one value. */
+  .seg {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    gap: 0.125rem;
+    padding: 0.125rem;
+    border: 1px solid var(--c-line);
+    border-radius: var(--r-md);
+    background: var(--c-raised);
+  }
+  .seg-item {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    padding: 0.3125rem 0.5rem;
+    border: none;
+    border-radius: var(--r-sm);
+    background: transparent;
+    color: var(--c-text-2);
+    font: inherit;
+    font-size: var(--t-xs);
+    font-weight: 500;
+    line-height: 1.2;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 120ms, color 120ms;
+  }
+  .seg-item:hover {
+    color: var(--c-text);
+  }
+  .seg-item:focus-visible {
+    outline: none;
+    box-shadow: var(--e-focus);
+  }
+  .seg-item[aria-pressed="true"],
+  .seg-item[aria-selected="true"] {
+    background: var(--c-surface);
+    color: var(--c-text);
+    box-shadow: var(--e-1);
+  }
+  .seg-item:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* --- Sheet / popover ----------------------------------------------------
+     One element, two shapes, chosen by CSS alone — no JS branch, so there is
+     nothing for hydration to disagree about. A sheet *is* a bottom sheet;
+     from `md` up, where there is room and a pointer, it becomes a popover
+     anchored by `--sheet-x`/`--sheet-y` (supplied from a bounding rect) and
+     the phone geometry is simply overridden. */
+  .sheet {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 60;
+    max-height: 72vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border: 1px solid var(--c-line);
+    border-bottom: none;
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+    background: var(--c-surface);
+    box-shadow: var(--e-2);
+    /* The half-rem keeps the last row off the screen edge even where the
+       safe-area inset is zero, which is most Android phones and any browser
+       without a home indicator. */
+    padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
+    animation: sheet-rise 180ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  /* A grab handle says "this dismisses". On a desktop popover the surrounding
+     page is visibly clickable; a full-width bottom sheet gives no such hint. */
+  .sheet::before {
+    content: "";
+    display: block;
+    width: 2.25rem;
+    height: 0.25rem;
+    margin: 0.5rem auto 0;
+    border-radius: var(--r-full);
+    background: var(--c-line-strong);
+  }
+  .sheet-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 55;
+    background: light-dark(rgb(16 16 20 / 0.3), rgb(0 0 0 / 0.55));
+  }
+  @media (min-width: 48rem) {
+    .sheet {
+      right: auto;
+      bottom: auto;
+      left: var(--sheet-x, auto);
+      top: var(--sheet-y, 3.25rem);
+      width: var(--sheet-w, 15rem);
+      max-height: min(24rem, 60vh);
+      border-bottom: 1px solid var(--c-line);
+      border-radius: var(--r-md);
+      padding-bottom: 0;
+      animation: none;
+    }
+    .sheet::before {
+      display: none;
+    }
+    /* For a sheet with no anchor to sit under the header's right edge. */
+    .sheet-corner {
+      right: 1rem;
+      left: auto;
+    }
+    .sheet-scrim {
+      background: transparent;
+    }
+  }
+  .sheet-title {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding: 0.75rem 1rem 0.5rem;
+    border-bottom: 1px solid var(--c-line);
+    background: var(--c-surface);
+    font-size: var(--t-xs);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--c-text-2);
+  }
+  /* Full-width row inside a sheet: the whole strip is the tap target. */
+  .sheet-item {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: none;
+    background: transparent;
+    color: var(--c-text);
+    font: inherit;
+    font-size: var(--t-base);
+    text-align: left;
+    cursor: pointer;
+  }
+  .sheet-item:hover {
+    background: var(--c-raised);
+  }
+  .sheet-item:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  /* --- Bottom tab bar ----------------------------------------------------
+     The admin sections, thumb-reachable. Mobile only — the header keeps its
+     inline links from `md` up. */
+  .tabbar {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 40;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    border-top: 1px solid var(--c-line);
+    background: color-mix(in srgb, var(--c-surface) 88%, transparent);
+    backdrop-filter: blur(12px);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .tabbar-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.1875rem;
+    min-height: 3.25rem;
+    padding: 0.4375rem 0.25rem;
+    color: var(--c-text-2);
+    font-size: var(--t-2xs);
+    font-weight: 500;
+    line-height: 1;
+    text-decoration: none;
+  }
+  .tabbar-item[aria-current="page"] {
+    color: var(--c-accent);
+  }
+  .tabbar-item:active {
+    background: var(--c-raised);
+  }
+
+  /* --- Touch ---------------------------------------------------------------
+     Every control gets a finger-sized hit area on a touch device, and text
+     inputs grow to 16px: anything smaller makes iOS Safari zoom the page in on
+     focus, and it never zooms back out. Keyed on `pointer: coarse` rather than
+     width so a small window on a laptop stays dense. */
+  @media (pointer: coarse) {
+    .field {
+      min-height: 2.75rem;
+      font-size: 1rem;
+    }
+    .btn {
+      min-height: 2.75rem;
+    }
+    .btn-sm {
+      min-height: 2.25rem;
+    }
+    .chip {
+      min-height: 2.25rem;
+      padding-block: 0.375rem;
+      font-size: var(--t-base);
+    }
+    .seg-item {
+      min-height: 2.5rem;
+      font-size: var(--t-sm);
+    }
+    .sheet-item {
+      min-height: 2.875rem;
+    }
+    /* A native checkbox renders at ~13px and ignores font-size, which is well
+       under any usable tap target. Every admin screen has a row of these. */
+    input[type="checkbox"],
+    input[type="radio"] {
+      width: 1.25rem;
+      height: 1.25rem;
+    }
+  }
+
+  @keyframes sheet-rise {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .sheet {
+      animation: none;
+    }
+  }
 }
