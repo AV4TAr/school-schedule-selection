@@ -35,7 +35,7 @@ export function generateCode(): string {
   return `${out.slice(0, 4)}-${out.slice(4)}`;
 }
 
-export { normaliseCode } from "./auth-shared";
+export { isValidCustomCode, normaliseCode } from "./auth-shared";
 
 // --- Passwords -------------------------------------------------------------
 

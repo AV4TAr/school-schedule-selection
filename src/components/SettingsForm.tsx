@@ -1,9 +1,11 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { updateSettings } from "@/app/actions";
-import { changePassword, updateScheduleName } from "@/app/auth-actions";
+import { changePassword, updateScheduleCode, updateScheduleName } from "@/app/auth-actions";
+import { MAX_CODE_LENGTH } from "@/lib/auth-shared";
 import { useI18n } from "@/lib/i18n/context";
 import { LOCALES, LOCALE_NAMES } from "@/lib/i18n/dictionaries";
 import { DEFAULT_SETTINGS, type SolverSettings, type SolverWeights } from "@/lib/types";
@@ -34,14 +36,22 @@ export function SettingsForm({
   };
 
   /** Listed in priority order — the same order the solver applies them. */
-  const weightFields: { key: keyof SolverWeights; label: string }[] = [
-    { key: "understaffCritical", label: t.settings.understaffCritical },
-    { key: "understaffIdeal", label: t.settings.understaffIdeal },
-    { key: "fairness", label: t.settings.fairness },
-    { key: "idleTime", label: t.settings.idleTime },
-    { key: "dayOff", label: t.settings.dayOff },
-    { key: "preferred", label: t.settings.preferred },
-    { key: "avoid", label: t.settings.avoid },
+  const weightFields: { key: keyof SolverWeights; label: string; hint: string }[] = [
+    {
+      key: "understaffCritical",
+      label: t.settings.understaffCritical,
+      hint: t.settings.understaffCriticalHint,
+    },
+    {
+      key: "understaffIdeal",
+      label: t.settings.understaffIdeal,
+      hint: t.settings.understaffIdealHint,
+    },
+    { key: "fairness", label: t.settings.fairness, hint: t.settings.fairnessHint },
+    { key: "idleTime", label: t.settings.idleTime, hint: t.settings.idleTimeHint },
+    { key: "dayOff", label: t.settings.dayOff, hint: t.settings.dayOffHint },
+    { key: "preferred", label: t.settings.preferred, hint: t.settings.preferredHint },
+    { key: "avoid", label: t.settings.avoid, hint: t.settings.avoidHint },
   ];
 
   return (
@@ -107,11 +117,12 @@ export function SettingsForm({
           <p className="mt-0.5 text-xs text-muted">{t.settings.weightsHint}</p>
         </div>
         <div className="divide-y divide-line">
-          {weightFields.map(({ key, label }, index) => (
+          {weightFields.map(({ key, label, hint }, index) => (
             <NumberRow
               key={key}
               rank={index + 1}
               label={label}
+              hint={hint}
               value={draft.weights[key]}
               disabled={pending}
               onChange={(value) =>
@@ -210,11 +221,30 @@ function ScheduleSection({
   scheduleName: string;
 }) {
   const { t } = useI18n();
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [name, setName] = useState(scheduleName);
+  const [codeDraft, setCodeDraft] = useState(code);
+  const [codeMessage, setCodeMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const submitCode = () => {
+    setCodeMessage(null);
+    startTransition(async () => {
+      const result = await updateScheduleCode(scheduleId, codeDraft);
+      if (result.ok) {
+        router.push(`/s/${result.code}/settings`);
+      } else {
+        setCodeDraft(code);
+        setCodeMessage({
+          ok: false,
+          text: result.error === "taken" ? t.settings.codeTaken : t.settings.codeInvalid,
+        });
+      }
+    });
+  };
 
   const submitPassword = () => {
     setMessage(null);
@@ -244,11 +274,32 @@ function ScheduleSection({
 
       <div className="divide-y divide-line">
         <div className="px-4 py-3">
-          <label className="label">{t.settings.scheduleCode}</label>
-          <p className="num rounded-[var(--r-sm)] border border-line bg-raised px-3 py-2 text-base font-semibold tracking-widest select-all">
-            {code}
-          </p>
+          <label className="label" htmlFor="schedule-code-field">
+            {t.settings.scheduleCode}
+          </label>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              id="schedule-code-field"
+              className="field num w-52 font-semibold tracking-widest"
+              maxLength={MAX_CODE_LENGTH}
+              value={codeDraft}
+              disabled={pending}
+              onChange={(e) => setCodeDraft(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && submitCode()}
+            />
+            <button
+              type="button"
+              className="btn"
+              disabled={pending || !codeDraft.trim() || codeDraft === code}
+              onClick={submitCode}
+            >
+              {t.common.save}
+            </button>
+          </div>
           <p className="mt-1.5 text-xs text-muted">{t.settings.scheduleCodeHint}</p>
+          {codeMessage && (
+            <p className="pill pill-danger mt-1.5">{codeMessage.text}</p>
+          )}
         </div>
 
         <div className="px-4 py-3">
