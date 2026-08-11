@@ -11,6 +11,7 @@
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:seed": "tsx --conditions=react-server scripts/seed.ts",
+    "reset-password": "tsx --conditions=react-server scripts/reset-password.ts",
     "design:build": "node design-system/build.mjs"
   },
   "dependencies": {

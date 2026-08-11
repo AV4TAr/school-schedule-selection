@@ -247,9 +247,22 @@ function PersonCard({
           className="btn btn-sm mt-1"
           title={t.hints.addWindow}
           disabled={pending}
-          onClick={() =>
-            run(() => void createAvailability(scheduleId, person.id, 1, 8 * 60, 13 * 60 + 15))
-          }
+          onClick={() => {
+            // The list is sorted by weekday then start time, so a new window
+            // needs a weekday past whatever this person already has, or it
+            // sorts to the top instead of landing next to this button.
+            const lastWeekday = windows.reduce((max, w) => Math.max(max, w.weekday), 0);
+            const nextWeekday = Math.min(5, lastWeekday + 1) as Weekday;
+            run(() =>
+              void createAvailability(
+                scheduleId,
+                person.id,
+                nextWeekday,
+                8 * 60,
+                13 * 60 + 15,
+              ),
+            );
+          }}
         >
           + {t.people.addWindow}
         </button>

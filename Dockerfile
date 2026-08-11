@@ -29,7 +29,14 @@ COPY --from=builder --chown=schedule:schedule /app/node_modules ./node_modules
 COPY --from=builder --chown=schedule:schedule /app/.next ./.next
 COPY --from=builder --chown=schedule:schedule /app/public ./public
 COPY --from=builder --chown=schedule:schedule /app/next.config.ts ./
+COPY --from=builder --chown=schedule:schedule /app/tsconfig.json ./
 COPY --from=builder --chown=schedule:schedule /app/drizzle ./drizzle
+
+# Admin CLIs (db:seed, reset-password) run via `docker exec` against the live
+# container, so they need their own TypeScript source and tsx to run it —
+# the app itself only ever runs from the compiled .next output above.
+COPY --from=builder --chown=schedule:schedule /app/scripts ./scripts
+COPY --from=builder --chown=schedule:schedule /app/src ./src
 
 # DATABASE_PATH points here; ensureDatabase() creates the file and applies
 # migrations on first request if it doesn't already exist.
