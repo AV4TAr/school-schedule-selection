@@ -10,7 +10,7 @@ services:
       - schedule-data:/app/data
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.school-schedule-selection.rule=Host(`schedule.diego.uy`)"
+      - "traefik.http.routers.school-schedule-selection.rule=Host(`schedule.diego.uy`) || Host(`schedule.ceibo.dev`)"
       - "traefik.http.routers.school-schedule-selection.entrypoints=web"
       - "traefik.http.services.school-schedule-selection.loadbalancer.server.port=3000"
     networks:
