@@ -98,7 +98,11 @@ export function ScheduleView({
               className="btn"
               title={t.hints.clearPins}
               disabled={pending}
-              onClick={() => startTransition(() => void clearPins())}
+              onClick={() => {
+                if (confirm(t.schedule.confirmClearPins)) {
+                  startTransition(() => void clearPins());
+                }
+              }}
             >
               {t.schedule.clearPins}
               <span className="pill pill-neutral">{pinnedCount}</span>
@@ -112,7 +116,13 @@ export function ScheduleView({
             className="btn btn-primary"
             title={t.hints.generate}
             disabled={pending}
-            onClick={() => startTransition(() => void generateSchedule())}
+            onClick={() => {
+              // Nothing to lose on the very first generate — only confirm
+              // when this button is actually replacing an existing schedule.
+              if (!hasSchedule || confirm(t.schedule.confirmGenerate)) {
+                startTransition(() => void generateSchedule());
+              }
+            }}
           >
             {pending
               ? t.schedule.generating

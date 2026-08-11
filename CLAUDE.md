@@ -118,6 +118,17 @@ segment if the name already covers all five days — never inserts without first
 guaranteeing the new row's weekday is free. The per-shift (single-weekday)
 actions still exist; the grouped ones are what the UI uses.
 
+### Staff view (`/my-schedule`)
+
+Read-only, mobile-first, distinct audience from the admin panel. `Nav` hides
+itself on this route (`pathname.startsWith("/my-schedule")`) — `MyScheduleView`
+renders its own minimal header instead. Identity is plain `useState`, not
+persisted to storage: it resets on every fresh page load by design (the user
+chose "ask every time" over remembering a device's owner), but survives
+day/week/scope toggles within a session since those don't remount the
+component. Never wire this route to any mutating action — it has none, and it
+should stay that way.
+
 ### Data flow
 
 Server components in `src/app/*/page.tsx` read synchronously via `queries.ts`

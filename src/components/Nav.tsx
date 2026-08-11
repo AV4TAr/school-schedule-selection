@@ -16,6 +16,11 @@ export function Nav({ undoLabels }: { undoLabels: UndoLabel[] }) {
   const { t, locale, setLocale } = useI18n();
   const pathname = usePathname();
 
+  // /my-schedule is the staff-facing read-only view — it gets its own minimal
+  // header (see MyScheduleView) rather than the admin nav with links to
+  // Staff/Shifts/Settings, which isn't this audience's business.
+  if (pathname.startsWith("/my-schedule")) return null;
+
   const links = [
     { href: "/", label: t.nav.schedule },
     { href: "/people", label: t.nav.people },
@@ -60,6 +65,9 @@ export function Nav({ undoLabels }: { undoLabels: UndoLabel[] }) {
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
+          <Link href="/my-schedule" className="btn btn-sm hidden sm:inline-flex">
+            {t.nav.myScheduleLink}
+          </Link>
           <UndoButton labels={undoLabels} />
           <ThemeToggle />
 

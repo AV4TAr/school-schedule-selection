@@ -149,6 +149,16 @@ start at 8:00**. Widen one person's window on the Staff page and hit Generate to
 see the effect immediately — that what-if is the fastest way to have the
 conversation with the team.
 
+## Staff view
+
+`/my-schedule` is a separate, read-only, mobile-first view for the school's
+staff — distinct from the admin panel (`/`, `/people`, `/shifts`, `/settings`).
+It asks who you are on every visit (no login, no persistence — just a name
+picker), then shows a Day or Week view, scoped to that person's own shifts or
+everyone's. No editing controls; nothing here can change the schedule. Share
+the URL — `http://<host>:3000/my-schedule` — as a home-screen bookmark on each
+person's phone.
+
 ## Deploying
 
 See [DEPLOYMENT.md](DEPLOYMENT.md) for running it as a service on a Mac mini

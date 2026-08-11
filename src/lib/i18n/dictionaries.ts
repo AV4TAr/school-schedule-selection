@@ -20,6 +20,7 @@ const en = {
     shifts: "Shifts",
     settings: "Settings",
     print: "Print view",
+    myScheduleLink: "Staff view",
   },
   weekdays: {
     long: ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
@@ -68,6 +69,10 @@ const en = {
     unpin: "Unlock",
     pinnedLegend: "Locked — kept on the next run",
     clearPins: "Clear all locks",
+    confirmGenerate:
+      "Regenerate the schedule?\n\nThis re-solves the whole week from scratch. Locked (🔒) assignments are kept exactly as they are; every other assignment will be recalculated and may change.",
+    confirmClearPins:
+      "Clear all locks?\n\nThis unlocks every assignment. It does not change the schedule by itself, but the next Regenerate will then be free to move anyone who is currently locked.",
     needed: "{assigned} of {ideal} needed",
     criticalGap: "Understaffed",
     idealGap: "Below preferred",
@@ -225,6 +230,21 @@ const en = {
       editSettings: "changing settings",
     },
   },
+  mySchedule: {
+    title: "My Schedule",
+    whoAreYou: "Who are you?",
+    changePerson: "Not you?",
+    scopeMe: "Me",
+    scopeEveryone: "Everyone",
+    viewDay: "Day",
+    viewWeek: "Week",
+    today: "Today",
+    noShiftsDay: "Nothing scheduled for you this day.",
+    noShiftsDayEveryone: "No shifts on this day.",
+    weeklyTotal: "This week",
+    unassigned: "Unassigned",
+    adminLink: "Admin panel",
+  },
   print: {
     title: "Weekly schedule",
     printedOn: "Printed {date}",
@@ -257,6 +277,7 @@ const es: Dictionary = {
     shifts: "Turnos",
     settings: "Ajustes",
     print: "Vista de impresión",
+    myScheduleLink: "Vista del personal",
   },
   weekdays: {
     long: ["", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"],
@@ -305,6 +326,10 @@ const es: Dictionary = {
     unpin: "Desfijar",
     pinnedLegend: "Fijado — se mantiene en la próxima generación",
     clearPins: "Quitar todos los fijados",
+    confirmGenerate:
+      "\u00bfRegenerar el horario?\n\nEsto vuelve a resolver toda la semana desde cero. Las asignaciones fijadas (\ud83d\udd12) se mantienen tal cual est\u00e1n; todas las dem\u00e1s se recalculan y pueden cambiar.",
+    confirmClearPins:
+      "\u00bfQuitar todos los fijados?\n\nEsto desfija todas las asignaciones. No cambia el horario por s\u00ed solo, pero el pr\u00f3ximo Regenerar quedar\u00e1 libre de mover a cualquiera que estuviera fijado.",
     needed: "{assigned} de {ideal} necesarias",
     criticalGap: "Falta personal",
     idealGap: "Por debajo de lo ideal",
@@ -462,6 +487,21 @@ const es: Dictionary = {
       deleteShift: "quitar {shift}",
       editSettings: "cambiar los ajustes",
     },
+  },
+  mySchedule: {
+    title: "Mi Horario",
+    whoAreYou: "\u00bfQui\u00e9n sos?",
+    changePerson: "\u00bfNo sos vos?",
+    scopeMe: "Yo",
+    scopeEveryone: "Todos",
+    viewDay: "D\u00eda",
+    viewWeek: "Semana",
+    today: "Hoy",
+    noShiftsDay: "No ten\u00e9s turnos este d\u00eda.",
+    noShiftsDayEveryone: "No hay turnos este d\u00eda.",
+    weeklyTotal: "Esta semana",
+    unassigned: "Sin asignar",
+    adminLink: "Panel de administraci\u00f3n",
   },
   print: {
     title: "Horario semanal",
