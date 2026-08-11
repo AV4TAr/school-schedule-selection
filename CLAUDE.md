@@ -65,6 +65,42 @@ holds the school's real schedule, and the auto-mode classifier will (correctly)
 block a raw write; treat that block as a signal to ask the user, not to find a
 workaround. Read-only queries against the real file are fine.
 
+## Multi-tenancy — read this before touching the database
+
+A **schedule** is the tenant boundary. `people`, `shifts`, `availability`,
+`assignments`, `settings` and `undo_stack` all carry `schedule_id`, and every
+query in `queries.ts` and every action in `actions.ts` is scoped by it. There
+are deliberately no unscoped variants: a missing filter leaks one school's
+roster into another's screen.
+
+Access is two-tiered. The `code` in the URL is a read capability; the password
+(scrypt hash in `schedules.password_hash`) is the write capability, carried
+afterwards in a signed per-schedule cookie. **Every mutating action begins with
+`requireAdmin(scheduleId)`** — it throws rather than returning a flag, so a
+forgotten check cannot silently fall through into a write. Actions take
+`scheduleId` as a plain argument, which is safe precisely because the cookie,
+not the argument, decides authorisation.
+
+### The migration trap that cost a restore
+
+`PRAGMA foreign_keys=OFF` is **silently a no-op inside a transaction**, and
+Drizzle's migrator wraps every migration in one. SQLite's standard 12-step table
+rebuild (create `__new_x`, copy, drop, rename) therefore *cascades* when the
+dropped table is a foreign-key parent — `DROP TABLE people` deleted every
+availability row and assignment. Migration 0003 was rewritten to add columns in
+place instead, and no parent table is ever dropped.
+
+Consequences to respect:
+
+- The scope columns carry **no** `.references()` in `schema.ts`. Adding one
+  makes `drizzle-kit generate` emit a rebuild, which reintroduces the bug.
+  Deleting a schedule must clean up its rows in application code.
+- **Always test a migration through the real transactional migrator**
+  (`ensureDatabase()` against a copy), not by piping SQL into the `sqlite3`
+  CLI — the CLI runs outside a transaction, so the PRAGMA works there and the
+  bug stays hidden.
+- Back up before migrating: `sqlite3 data/schedule.db ".backup 'path.db'"`.
+
 ## Architecture
 
 A weekly supervision rota builder. Times are **minutes since midnight**
@@ -118,7 +154,15 @@ segment if the name already covers all five days — never inserts without first
 guaranteeing the new row's weekday is free. The per-shift (single-weekday)
 actions still exist; the grouped ones are what the UI uses.
 
-### Staff view (`/my-schedule`)
+### Routes
+
+`/` is the landing page (create a schedule, or enter a code). Everything else
+lives under `/s/[code]/`, whose layout resolves the code to a schedule and 404s
+on an unknown one. `people`, `shifts` and `settings` redirect to `login` for a
+non-admin; `page`, `print` and `my-schedule` render read-only, with
+`ScheduleView` hiding every editing affordance when `canEdit` is false.
+
+### Staff view (`/s/[code]/my-schedule`)
 
 Read-only, mobile-first, distinct audience from the admin panel. `Nav` hides
 itself on this route (`pathname.startsWith("/my-schedule")`) — `MyScheduleView`

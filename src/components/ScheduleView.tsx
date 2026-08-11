@@ -31,6 +31,10 @@ interface Props {
   /** Weekdays that have at least one shift, in order. */
   weekdays: Weekday[];
   settings: SolverSettings;
+  scheduleId: number;
+  code: string;
+  /** False for a view-only visitor: every editing affordance is hidden. */
+  canEdit: boolean;
 }
 
 export function ScheduleView({
@@ -40,6 +44,9 @@ export function ScheduleView({
   assignments,
   weekdays,
   settings,
+  scheduleId,
+  code,
+  canEdit,
 }: Props) {
   const { t, fmt, range, duration, weekday } = useI18n();
   const [pending, startTransition] = useTransition();
@@ -92,7 +99,7 @@ export function ScheduleView({
           <p className="mt-1 text-base text-muted">{t.schedule.subtitle}</p>
         </div>
         <div className="no-print flex items-center gap-2">
-          {pinnedCount > 0 && (
+          {canEdit && pinnedCount > 0 && (
             <button
               type="button"
               className="btn"
@@ -100,7 +107,7 @@ export function ScheduleView({
               disabled={pending}
               onClick={() => {
                 if (confirm(t.schedule.confirmClearPins)) {
-                  startTransition(() => void clearPins());
+                  startTransition(() => void clearPins(scheduleId));
                 }
               }}
             >
@@ -108,9 +115,10 @@ export function ScheduleView({
               <span className="pill pill-neutral">{pinnedCount}</span>
             </button>
           )}
-          <Link className="btn" href="/print" title={t.hints.print}>
+          <Link className="btn" href={`/s/${code}/print`} title={t.hints.print}>
             {t.nav.print}
           </Link>
+          {canEdit && (
           <button
             type="button"
             className="btn btn-primary"
@@ -120,7 +128,7 @@ export function ScheduleView({
               // Nothing to lose on the very first generate — only confirm
               // when this button is actually replacing an existing schedule.
               if (!hasSchedule || confirm(t.schedule.confirmGenerate)) {
-                startTransition(() => void generateSchedule());
+                startTransition(() => void generateSchedule(scheduleId));
               }
             }}
           >
@@ -130,21 +138,26 @@ export function ScheduleView({
                 ? t.schedule.regenerate
                 : t.schedule.generate}
           </button>
+          )}
         </div>
       </header>
 
       {!hasSchedule ? (
         <div className="card grid place-items-center gap-3 px-6 py-16 text-center">
-          <p className="text-base text-muted">{t.schedule.empty}</p>
-          <button
-            type="button"
-            className="btn btn-primary"
-            title={t.hints.generate}
-            disabled={pending}
-            onClick={() => startTransition(() => void generateSchedule())}
-          >
-            {t.schedule.generate}
-          </button>
+          <p className="text-base text-muted">
+            {canEdit ? t.schedule.empty : t.schedule.emptyViewer}
+          </p>
+          {canEdit && (
+            <button
+              type="button"
+              className="btn btn-primary"
+              title={t.hints.generate}
+              disabled={pending}
+              onClick={() => startTransition(() => void generateSchedule(scheduleId))}
+            >
+              {t.schedule.generate}
+            </button>
+          )}
         </div>
       ) : (
         <>
@@ -198,7 +211,18 @@ export function ScheduleView({
                                   : "border-l-transparent"
                             }`}
                           >
-                            {staff.map((a) => (
+                            {staff.map((a) => !canEdit ? (
+                              <span
+                                key={a.personId}
+                                data-person={hueOf.get(a.personId) ?? 0}
+                                className="chip cursor-default"
+                              >
+                                <span aria-hidden className="chip-dot" />
+                                <span className="truncate">
+                                  {personById.get(a.personId)?.name ?? "?"}
+                                </span>
+                              </span>
+                            ) : (
                               <div key={a.personId} className="group/chip flex items-center">
                                 <button
                                   type="button"
@@ -208,7 +232,7 @@ export function ScheduleView({
                                   title={a.pinned ? t.hints.unpinChip : t.hints.pinChip}
                                   onClick={() =>
                                     startTransition(
-                                      () => void togglePin(shift.id, a.personId),
+                                      () => void togglePin(scheduleId, shift.id, a.personId),
                                     )
                                   }
                                   className="chip"
@@ -230,7 +254,7 @@ export function ScheduleView({
                                   aria-label={t.schedule.removePerson}
                                   onClick={() =>
                                     startTransition(
-                                      () => void removeAssignment(shift.id, a.personId),
+                                      () => void removeAssignment(scheduleId, shift.id, a.personId),
                                     )
                                   }
                                   className="ml-0.5 shrink-0 rounded-[3px] px-1 text-2xs text-faint opacity-0 transition group-hover/chip:opacity-100 hover:bg-danger-soft hover:text-danger focus-visible:opacity-100"
@@ -246,6 +270,7 @@ export function ScheduleView({
                               </span>
                             )}
 
+                            {canEdit && (
                             <AddPersonMenu
                               disabled={pending}
                               candidates={candidatesFor(shift).filter(
@@ -254,10 +279,11 @@ export function ScheduleView({
                               hueOf={hueOf}
                               onAdd={(personId) =>
                                 startTransition(
-                                  () => void addAssignment(shift.id, personId),
+                                  () => void addAssignment(scheduleId, shift.id, personId),
                                 )
                               }
                             />
+                            )}
 
                             <span
                               title={

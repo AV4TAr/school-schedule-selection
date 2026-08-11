@@ -51,3 +51,6 @@ next-env.d.ts
 
 # Design-system build output
 /design-system/dist
+
+# Session signing key — regenerating it only invalidates admin sessions
+.session-secret

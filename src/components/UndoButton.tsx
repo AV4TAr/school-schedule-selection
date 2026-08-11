@@ -11,7 +11,13 @@ import type { UndoLabel } from "@/lib/db/undo";
  * translated here, so a step recorded in English still reads correctly after
  * switching to Spanish.
  */
-export function UndoButton({ labels }: { labels: UndoLabel[] }) {
+export function UndoButton({
+  scheduleId,
+  labels,
+}: {
+  scheduleId: number;
+  labels: UndoLabel[];
+}) {
   const { t, fmt } = useI18n();
   const [pending, startTransition] = useTransition();
 
@@ -40,19 +46,19 @@ export function UndoButton({ labels }: { labels: UndoLabel[] }) {
       }
 
       event.preventDefault();
-      if (labels.length > 0) startTransition(() => void undoLast());
+      if (labels.length > 0) startTransition(() => void undoLast(scheduleId));
     };
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [labels.length, startTransition]);
+  }, [labels.length, scheduleId, startTransition]);
 
   return (
     <button
       type="button"
       className="btn btn-sm"
       disabled={disabled}
-      onClick={() => startTransition(() => void undoLast())}
+      onClick={() => startTransition(() => void undoLast(scheduleId))}
       title={
         next
           ? `${fmt(t.undo.tooltip, { action: describe(next) })} · ${t.undo.shortcut}`

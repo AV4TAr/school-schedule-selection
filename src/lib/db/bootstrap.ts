@@ -4,38 +4,45 @@ import path from "node:path";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 
 import { db } from "./client";
-import { availability, people, schedules, shifts } from "./schema";
+import { availability, people, shifts } from "./schema";
 import { SEED_PEOPLE, SEED_SHIFTS } from "./seed-data";
 
 let ready = false;
 
 /**
- * Brings the database up to date and seeds it the first time it is created.
- * Called from every server entry point; the `ready` flag makes it a no-op after
- * the first invocation in a given process.
+ * Brings the database up to date. Called from every server entry point; the
+ * `ready` flag makes it a no-op after the first invocation in a process.
+ *
+ * Deliberately does *not* seed. A schedule is created explicitly through the
+ * create flow and starts empty — the example roster in `seed-data.ts` belongs
+ * to one specific school and must never land in someone else's new schedule.
  */
 export function ensureDatabase() {
   if (ready) return;
   migrate(db, { migrationsFolder: path.join(process.cwd(), "drizzle") });
-
-  if (isEmpty()) seedDatabase();
-
   ready = true;
 }
 
-/** True when no staff exist yet — the signal for a fresh database. */
-export function isEmpty(): boolean {
-  return db.select({ id: people.id }).from(people).limit(1).all().length === 0;
-}
-
-/** Insert the starting roster and shifts. Assumes the tables are empty. */
-export function seedDatabase() {
+/**
+ * Fill a schedule with the example roster and shifts. Used by the seed script
+ * for demos, never on schedule creation.
+ */
+export function seedSchedule(scheduleId: number) {
   db.transaction((tx) => {
     for (const person of SEED_PEOPLE) {
-      const [row] = tx.insert(people).values({ name: person.name }).returning().all();
+      const [row] = tx
+        .insert(people)
+        .values({ scheduleId, name: person.name })
+        .returning()
+        .all();
       for (const w of person.windows) {
         tx.insert(availability)
-          .values({ personId: row.id, ...w, preference: w.preference ?? "neutral" })
+          .values({
+            scheduleId,
+            personId: row.id,
+            ...w,
+            preference: w.preference ?? "neutral",
+          })
           .run();
       }
     }
@@ -44,6 +51,7 @@ export function seedDatabase() {
       for (const weekday of shift.weekdays) {
         tx.insert(shifts)
           .values({
+            scheduleId,
             name: shift.name,
             weekday,
             startMin: shift.startMin,
@@ -54,7 +62,5 @@ export function seedDatabase() {
           .run();
       }
     }
-
-    tx.insert(schedules).values({ id: 1, name: "Current week" }).run();
   });
 }

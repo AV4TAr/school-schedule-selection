@@ -1,12 +1,12 @@
 import "server-only";
 
-import { desc, eq, notInArray } from "drizzle-orm";
+import { and, desc, eq, notInArray } from "drizzle-orm";
 
 import { db } from "./client";
 import { ensureDatabase } from "./bootstrap";
 import { assignments, availability, people, settings, shifts, undoStack } from "./schema";
 
-/** How many steps back the user can go. */
+/** How many steps back the user can go, per schedule. */
 export const UNDO_DEPTH = 5;
 
 /**
@@ -20,9 +20,12 @@ export interface UndoLabel {
 }
 
 /**
- * A complete copy of the mutable state. Small enough (a few kilobytes) that
- * snapshotting everything beats maintaining an inverse for each action type,
- * and it stays correct when an action touches several tables at once.
+ * A complete copy of one schedule's mutable state. Small enough (a few
+ * kilobytes) that snapshotting everything beats maintaining an inverse for each
+ * action type, and it stays correct when an action touches several tables.
+ *
+ * Everything here is scoped to a single schedule: an undo must never restore
+ * one tenant's rows over another's.
  */
 interface Snapshot {
   people: (typeof people.$inferSelect)[];
@@ -32,13 +35,21 @@ interface Snapshot {
   settings: (typeof settings.$inferSelect)[];
 }
 
-function capture(): Snapshot {
+function capture(scheduleId: number): Snapshot {
   return {
-    people: db.select().from(people).all(),
-    availability: db.select().from(availability).all(),
-    shifts: db.select().from(shifts).all(),
-    assignments: db.select().from(assignments).all(),
-    settings: db.select().from(settings).all(),
+    people: db.select().from(people).where(eq(people.scheduleId, scheduleId)).all(),
+    availability: db
+      .select()
+      .from(availability)
+      .where(eq(availability.scheduleId, scheduleId))
+      .all(),
+    shifts: db.select().from(shifts).where(eq(shifts.scheduleId, scheduleId)).all(),
+    assignments: db
+      .select()
+      .from(assignments)
+      .where(eq(assignments.scheduleId, scheduleId))
+      .all(),
+    settings: db.select().from(settings).where(eq(settings.scheduleId, scheduleId)).all(),
   };
 }
 
@@ -47,31 +58,40 @@ function capture(): Snapshot {
  * that changes data — never from `undoLast` itself, which would make undo
  * undo itself.
  */
-export function pushUndo(label: UndoLabel) {
+export function pushUndo(scheduleId: number, label: UndoLabel) {
   ensureDatabase();
   db.insert(undoStack)
-    .values({ label: JSON.stringify(label), snapshot: JSON.stringify(capture()) })
+    .values({
+      scheduleId,
+      label: JSON.stringify(label),
+      snapshot: JSON.stringify(capture(scheduleId)),
+    })
     .run();
 
-  // Trim to the newest UNDO_DEPTH entries.
+  // Trim to the newest UNDO_DEPTH entries for this schedule.
   const keep = db
     .select({ id: undoStack.id })
     .from(undoStack)
+    .where(eq(undoStack.scheduleId, scheduleId))
     .orderBy(desc(undoStack.id))
     .limit(UNDO_DEPTH)
     .all()
     .map((row) => row.id);
+
   if (keep.length > 0) {
-    db.delete(undoStack).where(notInArray(undoStack.id, keep)).run();
+    db.delete(undoStack)
+      .where(and(eq(undoStack.scheduleId, scheduleId), notInArray(undoStack.id, keep)))
+      .run();
   }
 }
 
 /** Labels of the available steps, newest first — drives the undo button. */
-export function getUndoLabels(): UndoLabel[] {
+export function getUndoLabels(scheduleId: number): UndoLabel[] {
   ensureDatabase();
   return db
     .select({ label: undoStack.label })
     .from(undoStack)
+    .where(eq(undoStack.scheduleId, scheduleId))
     .orderBy(desc(undoStack.id))
     .limit(UNDO_DEPTH)
     .all()
@@ -85,12 +105,18 @@ export function getUndoLabels(): UndoLabel[] {
 }
 
 /**
- * Restore the most recent snapshot and drop it from the stack.
- * Returns the label of what was undone, or null when there is nothing to undo.
+ * Restore the most recent snapshot for this schedule and drop it from the
+ * stack. Returns the label of what was undone, or null when there is nothing.
  */
-export function popUndo(): UndoLabel | null {
+export function popUndo(scheduleId: number): UndoLabel | null {
   ensureDatabase();
-  const row = db.select().from(undoStack).orderBy(desc(undoStack.id)).limit(1).get();
+  const row = db
+    .select()
+    .from(undoStack)
+    .where(eq(undoStack.scheduleId, scheduleId))
+    .orderBy(desc(undoStack.id))
+    .limit(1)
+    .get();
   if (!row) return null;
 
   let snapshot: Snapshot;
@@ -104,12 +130,13 @@ export function popUndo(): UndoLabel | null {
 
   db.transaction((tx) => {
     // Delete children before parents, then insert parents before children:
-    // foreign keys are enforced.
-    tx.delete(assignments).run();
-    tx.delete(availability).run();
-    tx.delete(shifts).run();
-    tx.delete(people).run();
-    tx.delete(settings).run();
+    // foreign keys are enforced. Every delete is scoped, so a restore can
+    // never reach outside this schedule.
+    tx.delete(assignments).where(eq(assignments.scheduleId, scheduleId)).run();
+    tx.delete(availability).where(eq(availability.scheduleId, scheduleId)).run();
+    tx.delete(shifts).where(eq(shifts.scheduleId, scheduleId)).run();
+    tx.delete(people).where(eq(people.scheduleId, scheduleId)).run();
+    tx.delete(settings).where(eq(settings.scheduleId, scheduleId)).run();
 
     // Explicit ids are preserved so assignments and pins keep pointing at the
     // same rows they did before.

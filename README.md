@@ -1,10 +1,31 @@
 # School Supervision Schedule
 
-A local web app for building the weekly supervision rota: enter who is available
-when, define the shifts that need covering, and let the solver produce the best
+A web app for building weekly supervision rotas: enter who is available when,
+define the shifts that need covering, and let the solver produce the best
 possible schedule — then adjust it by hand.
 
 English by default, with a Spanish toggle in the header.
+
+## Schedules, codes and passwords
+
+The app hosts any number of independent schedules. Each one has:
+
+- **A code** (e.g. `PNR2-F7ZH`) — the shareable handle. It lives in the URL
+  (`/s/PNR2-F7ZH`) and grants **read** access. Share it with your team.
+- **A password** — held only by whoever runs the schedule. It grants **write**
+  access, and is what the Staff, Shifts and Settings pages require.
+
+Anyone with the code can look at the schedule and the staff view. Only someone
+who signs in with the password can change anything. Admin sessions last 30 days
+per browser, and there is a Sign out button for shared computers.
+
+Codes are random and unguessable, but they are *capabilities*: anyone who has
+one can see the roster and everyone's availability. Treat a code like a
+read-only link, not a secret.
+
+Passwords are stored only as a scrypt hash with a per-schedule random salt.
+**There is no password recovery** — losing it means losing the ability to edit
+that schedule.
 
 ## Running it
 
@@ -13,9 +34,12 @@ npm install
 npm run dev          # http://localhost:3000
 ```
 
-The database is a single SQLite file at `data/schedule.db`. It is created,
-migrated and seeded automatically on first run, and is gitignored — it holds
-your real data, not fixtures.
+The database is a single SQLite file at `data/schedule.db`, created and
+migrated automatically on first run and gitignored — it holds real data, not
+fixtures. Visit `/` to create your first schedule; new schedules start empty.
+
+`data/.session-secret` is generated alongside it and signs admin cookies.
+Deleting it just signs everyone out.
 
 ```bash
 npm test             # solver tests
@@ -27,15 +51,14 @@ npm run build && npm start   # production mode
 ### Database scripts
 
 ```bash
-npm run db:seed                 # seed only if the database is empty (safe, idempotent)
-npm run db:seed -- --generate   # ...and solve the first schedule so the app opens with one
-npm run db:seed -- --reset      # WIPE everything and reseed from src/lib/db/seed-data.ts
-npm run db:generate             # regenerate migrations after editing src/lib/db/schema.ts
+npm run db:seed                        # apply migrations only (safe on every deploy)
+npm run db:seed -- --demo              # create a demo schedule, print its code
+npm run db:seed -- --demo --generate   # ...and solve its first schedule
+npm run db:generate                    # regenerate migrations after editing schema.ts
 ```
 
-Migrations always run first, so `npm run db:seed` is also how you bring an
-existing database up to date without starting the app. `--reset` is destructive
-and is not covered by the in-app undo.
+`db:seed` only ever *adds* a schedule — it cannot modify or delete existing
+data, and there is deliberately no `--reset`.
 
 ## Pages
 

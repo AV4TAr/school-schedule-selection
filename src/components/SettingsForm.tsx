@@ -3,11 +3,22 @@
 import { useState, useTransition } from "react";
 
 import { updateSettings } from "@/app/actions";
+import { changePassword, updateScheduleName } from "@/app/auth-actions";
 import { useI18n } from "@/lib/i18n/context";
 import { LOCALES, LOCALE_NAMES } from "@/lib/i18n/dictionaries";
 import { DEFAULT_SETTINGS, type SolverSettings, type SolverWeights } from "@/lib/types";
 
-export function SettingsForm({ initial }: { initial: SolverSettings }) {
+export function SettingsForm({
+  scheduleId,
+  code,
+  scheduleName,
+  initial,
+}: {
+  scheduleId: number;
+  code: string;
+  scheduleName: string;
+  initial: SolverSettings;
+}) {
   const { t, locale, setLocale } = useI18n();
   const [pending, startTransition] = useTransition();
   const [draft, setDraft] = useState<SolverSettings>(initial);
@@ -17,7 +28,7 @@ export function SettingsForm({ initial }: { initial: SolverSettings }) {
     setDraft(next);
     setSaved(false);
     startTransition(async () => {
-      await updateSettings(next);
+      await updateSettings(scheduleId, next);
       setSaved(true);
     });
   };
@@ -39,6 +50,12 @@ export function SettingsForm({ initial }: { initial: SolverSettings }) {
         <h1 className="page-title">{t.settings.title}</h1>
         <p className="mt-1 text-base text-muted">{t.settings.subtitle}</p>
       </header>
+
+      <ScheduleSection
+        scheduleId={scheduleId}
+        code={code}
+        scheduleName={scheduleName}
+      />
 
       <section className="card overflow-hidden">
         <h2 className="border-b border-line bg-raised/50 px-4 py-2.5 text-sm font-semibold">
@@ -179,5 +196,127 @@ function NumberRow({
         <span className="w-12 text-xs text-faint">{unit ?? ""}</span>
       </div>
     </div>
+  );
+}
+
+/** Identity and access for this schedule: its share code, name and password. */
+function ScheduleSection({
+  scheduleId,
+  code,
+  scheduleName,
+}: {
+  scheduleId: number;
+  code: string;
+  scheduleName: string;
+}) {
+  const { t } = useI18n();
+  const [pending, startTransition] = useTransition();
+  const [name, setName] = useState(scheduleName);
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const submitPassword = () => {
+    setMessage(null);
+    startTransition(async () => {
+      const result = await changePassword(scheduleId, current, next);
+      if (result.ok) {
+        setCurrent("");
+        setNext("");
+        setMessage({ ok: true, text: t.settings.passwordChanged });
+      } else {
+        setMessage({
+          ok: false,
+          text:
+            result.error === "passwordShort"
+              ? t.auth.passwordTooShort
+              : t.auth.wrongPassword,
+        });
+      }
+    });
+  };
+
+  return (
+    <section className="card overflow-hidden">
+      <h2 className="border-b border-line bg-raised/50 px-4 py-2.5 text-sm font-semibold">
+        {t.settings.scheduleSection}
+      </h2>
+
+      <div className="divide-y divide-line">
+        <div className="px-4 py-3">
+          <label className="label">{t.settings.scheduleCode}</label>
+          <p className="num rounded-[var(--r-sm)] border border-line bg-raised px-3 py-2 text-base font-semibold tracking-widest select-all">
+            {code}
+          </p>
+          <p className="mt-1.5 text-xs text-muted">{t.settings.scheduleCodeHint}</p>
+        </div>
+
+        <div className="px-4 py-3">
+          <label className="label" htmlFor="schedule-name-field">
+            {t.settings.scheduleNameLabel}
+          </label>
+          <input
+            id="schedule-name-field"
+            className="field max-w-sm"
+            value={name}
+            disabled={pending}
+            onChange={(e) => setName(e.target.value)}
+            onBlur={() => {
+              const trimmed = name.trim();
+              if (!trimmed || trimmed === scheduleName) return setName(scheduleName);
+              startTransition(() => void updateScheduleName(scheduleId, trimmed));
+            }}
+            onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+          />
+        </div>
+
+        <div className="space-y-2.5 px-4 py-3">
+          <h3 className="text-sm font-medium">{t.settings.changePassword}</h3>
+          <div className="flex flex-wrap gap-2">
+            <div>
+              <label className="label" htmlFor="current-password">
+                {t.settings.currentPassword}
+              </label>
+              <input
+                id="current-password"
+                type="password"
+                autoComplete="current-password"
+                className="field w-52"
+                value={current}
+                disabled={pending}
+                onChange={(e) => setCurrent(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="next-password">
+                {t.settings.newPassword}
+              </label>
+              <input
+                id="next-password"
+                type="password"
+                autoComplete="new-password"
+                className="field w-52"
+                value={next}
+                disabled={pending}
+                onChange={(e) => setNext(e.target.value)}
+              />
+            </div>
+            <button
+              type="button"
+              className="btn mt-auto mb-0.5"
+              disabled={pending || !next}
+              onClick={submitPassword}
+            >
+              {t.common.save}
+            </button>
+          </div>
+          {message && (
+            <p className={`pill ${message.ok ? "pill-ok" : "pill-danger"}`}>
+              {message.text}
+            </p>
+          )}
+        </div>
+      </div>
+    </section>
   );
 }

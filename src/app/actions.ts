@@ -6,8 +6,6 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db/client";
 import { assignments, availability, people, shifts } from "@/lib/db/schema";
 import {
-  CURRENT_SCHEDULE_ID,
-  ensureCurrentSchedule,
   getAssignments,
   getAvailability,
   getPeople,
@@ -15,29 +13,58 @@ import {
   getSolverSettings,
   saveSolverSettings,
 } from "@/lib/db/queries";
-import { isAvailable } from "@/lib/availability";
 import { popUndo, pushUndo, type UndoLabel } from "@/lib/db/undo";
+import { isAvailable } from "@/lib/availability";
+import { requireAdmin } from "@/lib/session";
 import { solve } from "@/lib/solver";
 import { SCHOOL_WEEKDAYS, type Preference, type SolverSettings, type Weekday } from "@/lib/types";
+
+/**
+ * Every action here takes the `scheduleId` it operates on and begins with
+ * `requireAdmin`, which checks the signed per-schedule cookie server-side. The
+ * id being a plain argument is safe precisely because the cookie — not the
+ * argument — decides whether the caller may write to that schedule.
+ */
 
 function refresh() {
   revalidatePath("/", "layout");
 }
 
 /** Look up a name for the undo label before the row is changed or removed. */
-function personName(id: number): string {
-  return db.select().from(people).where(eq(people.id, id)).get()?.name ?? "?";
+function personName(scheduleId: number, id: number): string {
+  return (
+    db
+      .select()
+      .from(people)
+      .where(and(eq(people.id, id), eq(people.scheduleId, scheduleId)))
+      .get()?.name ?? "?"
+  );
 }
 
-function shiftName(id: number): string {
-  return db.select().from(shifts).where(eq(shifts.id, id)).get()?.name ?? "?";
+function shiftName(scheduleId: number, id: number): string {
+  return (
+    db
+      .select()
+      .from(shifts)
+      .where(and(eq(shifts.id, id), eq(shifts.scheduleId, scheduleId)))
+      .get()?.name ?? "?"
+  );
 }
+
+/** Rows are only ever addressed together with their schedule, never by id alone. */
+const ownedShift = (scheduleId: number, id: number) =>
+  and(eq(shifts.id, id), eq(shifts.scheduleId, scheduleId));
+const ownedPerson = (scheduleId: number, id: number) =>
+  and(eq(people.id, id), eq(people.scheduleId, scheduleId));
+const ownedWindow = (scheduleId: number, id: number) =>
+  and(eq(availability.id, id), eq(availability.scheduleId, scheduleId));
 
 // --- Undo -----------------------------------------------------------------
 
 /** Reverse the most recent action. Deliberately not itself undoable. */
-export async function undoLast() {
-  const label = popUndo();
+export async function undoLast(scheduleId: number) {
+  await requireAdmin(scheduleId);
+  const label = popUndo(scheduleId);
   refresh();
   return label;
 }
@@ -48,25 +75,25 @@ export async function undoLast() {
  * Re-solve the week and replace the stored assignments. Pinned assignments are
  * fed back in as constraints so the user's manual locks survive.
  */
-export async function generateSchedule() {
-  ensureCurrentSchedule();
-  pushUndo({ key: "generate" });
+export async function generateSchedule(scheduleId: number) {
+  await requireAdmin(scheduleId);
+  pushUndo(scheduleId, { key: "generate" });
 
-  const pins = getAssignments().filter((a) => a.pinned);
+  const pins = getAssignments(scheduleId).filter((a) => a.pinned);
   const result = solve({
-    people: getPeople(),
-    availability: getAvailability(),
-    shifts: getShifts(),
+    people: getPeople(scheduleId),
+    availability: getAvailability(scheduleId),
+    shifts: getShifts(scheduleId),
     pins,
-    settings: getSolverSettings(),
+    settings: getSolverSettings(scheduleId),
   });
 
   db.transaction((tx) => {
-    tx.delete(assignments).where(eq(assignments.scheduleId, CURRENT_SCHEDULE_ID)).run();
+    tx.delete(assignments).where(eq(assignments.scheduleId, scheduleId)).run();
     for (const a of result.assignments) {
       tx.insert(assignments)
         .values({
-          scheduleId: CURRENT_SCHEDULE_ID,
+          scheduleId,
           shiftId: a.shiftId,
           personId: a.personId,
           pinned: a.pinned,
@@ -83,14 +110,14 @@ export async function generateSchedule() {
   };
 }
 
-export async function togglePin(shiftId: number, personId: number) {
-  ensureCurrentSchedule();
+export async function togglePin(scheduleId: number, shiftId: number, personId: number) {
+  await requireAdmin(scheduleId);
   const row = db
     .select()
     .from(assignments)
     .where(
       and(
-        eq(assignments.scheduleId, CURRENT_SCHEDULE_ID),
+        eq(assignments.scheduleId, scheduleId),
         eq(assignments.shiftId, shiftId),
         eq(assignments.personId, personId),
       ),
@@ -98,34 +125,30 @@ export async function togglePin(shiftId: number, personId: number) {
     .get();
   if (!row) return;
 
-  pushUndo({
+  pushUndo(scheduleId, {
     key: row.pinned ? "unpin" : "pin",
-    params: { person: personName(personId), shift: shiftName(shiftId) },
+    params: { person: personName(scheduleId, personId), shift: shiftName(scheduleId, shiftId) },
   });
 
-  db.update(assignments)
-    .set({ pinned: !row.pinned })
-    .where(eq(assignments.id, row.id))
-    .run();
+  db.update(assignments).set({ pinned: !row.pinned }).where(eq(assignments.id, row.id)).run();
   refresh();
 }
 
 /**
  * Manually place someone on a shift. Manual placements are pinned by default:
  * the user just made a decision, and the next Generate must not silently
- * discard it.
- *
- * Refuses people who are not available — that is a hard rule, and the UI only
- * offers eligible candidates. Overstaffing past the preferred headcount is
- * allowed: the solver won't do it, but the user is entitled to.
+ * discard it. Refuses people who are not available — that is a hard rule.
  */
-export async function addAssignment(shiftId: number, personId: number) {
-  ensureCurrentSchedule();
+export async function addAssignment(scheduleId: number, shiftId: number, personId: number) {
+  await requireAdmin(scheduleId);
 
-  const shift = db.select().from(shifts).where(eq(shifts.id, shiftId)).get();
+  const shift = db.select().from(shifts).where(ownedShift(scheduleId, shiftId)).get();
   if (!shift) return;
+  // Guards against a person id from another schedule being smuggled in.
+  const person = db.select().from(people).where(ownedPerson(scheduleId, personId)).get();
+  if (!person) return;
 
-  const windows = getAvailability().filter((w) => w.personId === personId);
+  const windows = getAvailability(scheduleId).filter((w) => w.personId === personId);
   if (!isAvailable({ ...shift, weekday: shift.weekday as Weekday }, windows)) return;
 
   const existing = db
@@ -133,7 +156,7 @@ export async function addAssignment(shiftId: number, personId: number) {
     .from(assignments)
     .where(
       and(
-        eq(assignments.scheduleId, CURRENT_SCHEDULE_ID),
+        eq(assignments.scheduleId, scheduleId),
         eq(assignments.shiftId, shiftId),
         eq(assignments.personId, personId),
       ),
@@ -141,27 +164,24 @@ export async function addAssignment(shiftId: number, personId: number) {
     .get();
   if (existing) return;
 
-  pushUndo({
+  pushUndo(scheduleId, {
     key: "addAssignment",
-    params: { person: personName(personId), shift: shiftName(shiftId) },
+    params: { person: person.name, shift: shift.name },
   });
-  db.insert(assignments)
-    .values({ scheduleId: CURRENT_SCHEDULE_ID, shiftId, personId, pinned: true })
-    .run();
+  db.insert(assignments).values({ scheduleId, shiftId, personId, pinned: true }).run();
   refresh();
 }
 
-/** Take someone off a shift. */
-export async function removeAssignment(shiftId: number, personId: number) {
-  ensureCurrentSchedule();
-  pushUndo({
+export async function removeAssignment(scheduleId: number, shiftId: number, personId: number) {
+  await requireAdmin(scheduleId);
+  pushUndo(scheduleId, {
     key: "removeAssignment",
-    params: { person: personName(personId), shift: shiftName(shiftId) },
+    params: { person: personName(scheduleId, personId), shift: shiftName(scheduleId, shiftId) },
   });
   db.delete(assignments)
     .where(
       and(
-        eq(assignments.scheduleId, CURRENT_SCHEDULE_ID),
+        eq(assignments.scheduleId, scheduleId),
         eq(assignments.shiftId, shiftId),
         eq(assignments.personId, personId),
       ),
@@ -170,27 +190,33 @@ export async function removeAssignment(shiftId: number, personId: number) {
   refresh();
 }
 
-export async function clearPins() {
-  ensureCurrentSchedule();
-  pushUndo({ key: "clearPins" });
+export async function clearPins(scheduleId: number) {
+  await requireAdmin(scheduleId);
+  pushUndo(scheduleId, { key: "clearPins" });
   db.update(assignments)
     .set({ pinned: false })
-    .where(eq(assignments.scheduleId, CURRENT_SCHEDULE_ID))
+    .where(eq(assignments.scheduleId, scheduleId))
     .run();
   refresh();
 }
 
 // --- Staff ----------------------------------------------------------------
 
-export async function createPerson(name: string) {
+export async function createPerson(scheduleId: number, name: string) {
+  await requireAdmin(scheduleId);
   const trimmed = name.trim();
   if (!trimmed) return;
-  pushUndo({ key: "addPerson", params: { person: trimmed } });
-  db.insert(people).values({ name: trimmed }).run();
+  pushUndo(scheduleId, { key: "addPerson", params: { person: trimmed } });
+  db.insert(people).values({ scheduleId, name: trimmed }).run();
   refresh();
 }
 
-export async function updatePerson(id: number, patch: { name?: string; active?: boolean }) {
+export async function updatePerson(
+  scheduleId: number,
+  id: number,
+  patch: { name?: string; active?: boolean },
+) {
+  await requireAdmin(scheduleId);
   const set: { name?: string; active?: boolean } = {};
   if (patch.name !== undefined) {
     const trimmed = patch.name.trim();
@@ -200,33 +226,40 @@ export async function updatePerson(id: number, patch: { name?: string; active?: 
   if (patch.active !== undefined) set.active = patch.active;
   if (Object.keys(set).length === 0) return;
 
-  pushUndo({ key: "editPerson", params: { person: personName(id) } });
-  db.update(people).set(set).where(eq(people.id, id)).run();
+  pushUndo(scheduleId, { key: "editPerson", params: { person: personName(scheduleId, id) } });
+  db.update(people).set(set).where(ownedPerson(scheduleId, id)).run();
   refresh();
 }
 
-export async function deletePerson(id: number) {
-  pushUndo({ key: "deletePerson", params: { person: personName(id) } });
-  db.delete(people).where(eq(people.id, id)).run();
+export async function deletePerson(scheduleId: number, id: number) {
+  await requireAdmin(scheduleId);
+  pushUndo(scheduleId, { key: "deletePerson", params: { person: personName(scheduleId, id) } });
+  db.delete(people).where(ownedPerson(scheduleId, id)).run();
   refresh();
 }
 
 export async function createAvailability(
+  scheduleId: number,
   personId: number,
   weekday: Weekday,
   startMin: number,
   endMin: number,
   preference: Preference = "neutral",
 ) {
+  await requireAdmin(scheduleId);
   if (endMin <= startMin) return;
-  pushUndo({ key: "addWindow", params: { person: personName(personId) } });
+  const person = db.select().from(people).where(ownedPerson(scheduleId, personId)).get();
+  if (!person) return;
+
+  pushUndo(scheduleId, { key: "addWindow", params: { person: person.name } });
   db.insert(availability)
-    .values({ personId, weekday, startMin, endMin, preference })
+    .values({ scheduleId, personId, weekday, startMin, endMin, preference })
     .run();
   refresh();
 }
 
 export async function updateAvailability(
+  scheduleId: number,
   id: number,
   patch: {
     weekday?: Weekday;
@@ -235,12 +268,16 @@ export async function updateAvailability(
     preference?: Preference;
   },
 ) {
-  const row = db.select().from(availability).where(eq(availability.id, id)).get();
+  await requireAdmin(scheduleId);
+  const row = db.select().from(availability).where(ownedWindow(scheduleId, id)).get();
   if (!row) return;
   const next = { ...row, ...patch };
   if (next.endMin <= next.startMin) return;
 
-  pushUndo({ key: "editWindow", params: { person: personName(row.personId) } });
+  pushUndo(scheduleId, {
+    key: "editWindow",
+    params: { person: personName(scheduleId, row.personId) },
+  });
   db.update(availability)
     .set({
       weekday: next.weekday,
@@ -248,16 +285,20 @@ export async function updateAvailability(
       endMin: next.endMin,
       preference: next.preference,
     })
-    .where(eq(availability.id, id))
+    .where(ownedWindow(scheduleId, id))
     .run();
   refresh();
 }
 
-export async function deleteAvailability(id: number) {
-  const row = db.select().from(availability).where(eq(availability.id, id)).get();
+export async function deleteAvailability(scheduleId: number, id: number) {
+  await requireAdmin(scheduleId);
+  const row = db.select().from(availability).where(ownedWindow(scheduleId, id)).get();
   if (!row) return;
-  pushUndo({ key: "deleteWindow", params: { person: personName(row.personId) } });
-  db.delete(availability).where(eq(availability.id, id)).run();
+  pushUndo(scheduleId, {
+    key: "deleteWindow",
+    params: { person: personName(scheduleId, row.personId) },
+  });
+  db.delete(availability).where(ownedWindow(scheduleId, id)).run();
   refresh();
 }
 
@@ -282,28 +323,12 @@ function normaliseShift(input: ShiftInput): ShiftInput | null {
   return { ...input, name, requiredMin, requiredIdeal };
 }
 
-export async function createShift(input: ShiftInput) {
+export async function createShift(scheduleId: number, input: ShiftInput) {
+  await requireAdmin(scheduleId);
   const clean = normaliseShift(input);
   if (!clean) return;
-  pushUndo({ key: "addShift", params: { shift: clean.name } });
-  db.insert(shifts).values({ ...clean, active: clean.active ?? true }).run();
-  refresh();
-}
-
-export async function updateShift(id: number, input: ShiftInput) {
-  const clean = normaliseShift(input);
-  if (!clean) return;
-  pushUndo({ key: "editShift", params: { shift: shiftName(id) } });
-  db.update(shifts)
-    .set({ ...clean, active: clean.active ?? true })
-    .where(eq(shifts.id, id))
-    .run();
-  refresh();
-}
-
-export async function deleteShift(id: number) {
-  pushUndo({ key: "deleteShift", params: { shift: shiftName(id) } });
-  db.delete(shifts).where(eq(shifts.id, id)).run();
+  pushUndo(scheduleId, { key: "addShift", params: { shift: clean.name } });
+  db.insert(shifts).values({ scheduleId, ...clean, active: clean.active ?? true }).run();
   refresh();
 }
 
@@ -312,14 +337,16 @@ export async function deleteShift(id: number) {
  * operate on a whole group at once. `ids` is every shift in the group.
  */
 export async function updateShiftGroup(
+  scheduleId: number,
   ids: number[],
   input: Omit<ShiftInput, "weekday">,
 ) {
+  await requireAdmin(scheduleId);
   if (ids.length === 0) return;
   const clean = normaliseShift({ ...input, weekday: 1 });
   if (!clean) return;
 
-  pushUndo({ key: "editShift", params: { shift: shiftName(ids[0]) } });
+  pushUndo(scheduleId, { key: "editShift", params: { shift: shiftName(scheduleId, ids[0]) } });
   db.transaction((tx) => {
     for (const id of ids) {
       tx.update(shifts)
@@ -331,7 +358,7 @@ export async function updateShiftGroup(
           requiredIdeal: clean.requiredIdeal,
           active: clean.active ?? true,
         })
-        .where(eq(shifts.id, id))
+        .where(ownedShift(scheduleId, id))
         .run();
     }
   });
@@ -340,24 +367,25 @@ export async function updateShiftGroup(
 
 /**
  * Turn one weekday of a shift *segment* (a name + specific time range) on or
- * off. A shift name can have several segments — e.g. Recess at one time
- * Mon/Tue/Fri and a different time Wed/Thu — but a given weekday can only
- * belong to ONE of them. Enabling a day here therefore first removes it from
- * any other segment sharing the same name, so segments can never overlap.
+ * off. A shift name can have several segments, but a given weekday can only
+ * belong to ONE of them — enabling a day here first removes it from any other
+ * segment sharing the same name, so segments can never overlap.
  */
 export async function setShiftWeekday(
+  scheduleId: number,
   ids: number[],
   weekday: Weekday,
   enabled: boolean,
 ) {
+  await requireAdmin(scheduleId);
   if (ids.length === 0) return;
-  const template = db.select().from(shifts).where(eq(shifts.id, ids[0])).get();
+  const template = db.select().from(shifts).where(ownedShift(scheduleId, ids[0])).get();
   if (!template) return;
 
   const sameNameShifts = db
     .select()
     .from(shifts)
-    .where(eq(shifts.name, template.name))
+    .where(and(eq(shifts.scheduleId, scheduleId), eq(shifts.name, template.name)))
     .all();
 
   const existingHere = sameNameShifts.find(
@@ -370,13 +398,13 @@ export async function setShiftWeekday(
   if (enabled) {
     if (existingHere) return;
 
-    // Claiming this weekday takes it away from any other segment of the same
-    // name — that is what keeps segments from overlapping.
     const claimedElsewhere = sameNameShifts.filter(
-      (s) => s.weekday === weekday && !(s.startMin === template.startMin && s.endMin === template.endMin),
+      (s) =>
+        s.weekday === weekday &&
+        !(s.startMin === template.startMin && s.endMin === template.endMin),
     );
 
-    pushUndo({ key: "addShift", params: { shift: template.name } });
+    pushUndo(scheduleId, { key: "addShift", params: { shift: template.name } });
     db.transaction((tx) => {
       // Each row is exactly one weekday, so reclaiming it is a plain delete —
       // whatever segment it belonged to shrinks by one day (or disappears, if
@@ -386,6 +414,7 @@ export async function setShiftWeekday(
       }
       tx.insert(shifts)
         .values({
+          scheduleId,
           name: template.name,
           weekday,
           startMin: template.startMin,
@@ -400,34 +429,34 @@ export async function setShiftWeekday(
     if (!existingHere) return;
     // Never leave a segment with no days at all — delete it instead.
     if (ids.length <= 1) return;
-    pushUndo({ key: "deleteShift", params: { shift: template.name } });
+    pushUndo(scheduleId, { key: "deleteShift", params: { shift: template.name } });
     db.delete(shifts).where(eq(shifts.id, existingHere.id)).run();
   }
   refresh();
 }
 
 /**
- * Add a new, empty (no weekdays yet) segment under an existing shift name,
- * so the user can then toggle days onto it — e.g. giving Thursday a different
- * time than the rest of the week without creating a same-named but disjoint
- * top-level shift.
+ * Add a new segment under an existing shift name, so the user can give some
+ * days a different time than the rest of the week.
  */
-export async function addShiftSegment(name: string) {
-  const sameName = db.select().from(shifts).where(eq(shifts.name, name)).all();
+export async function addShiftSegment(scheduleId: number, name: string) {
+  await requireAdmin(scheduleId);
+  const sameName = db
+    .select()
+    .from(shifts)
+    .where(and(eq(shifts.scheduleId, scheduleId), eq(shifts.name, name)))
+    .all();
   if (sameName.length === 0) return;
   const template = sameName[0];
 
-  // Every shift row owns exactly one weekday, and a row can't be inserted
-  // without one — so the new segment needs a day from somewhere. Prefer a day
-  // nobody has claimed; if the name already covers all five (the common case,
-  // e.g. Recess running every day), take one from whichever existing segment
-  // currently holds the most, so no segment is ever left empty by this.
+  // Every shift row owns exactly one weekday, so the new segment needs a day.
+  // Prefer an unclaimed one; if the name already covers all five, take one from
+  // whichever segment holds the most, so none is ever left empty.
   const claimed = new Set(sameName.map((s) => s.weekday));
   const free = SCHOOL_WEEKDAYS.find((d) => !claimed.has(d));
-
-  pushUndo({ key: "addShift", params: { shift: name } });
-
   let weekday: Weekday = free as Weekday;
+
+  pushUndo(scheduleId, { key: "addShift", params: { shift: name } });
 
   db.transaction((tx) => {
     if (free === undefined) {
@@ -439,7 +468,6 @@ export async function addShiftSegment(name: string) {
         else bySegment.set(key, [s]);
       }
       const largest = [...bySegment.values()].sort((a, b) => b.length - a.length)[0];
-      // Never drain a segment down to zero days taking from it.
       const donor = largest.length > 1 ? largest[largest.length - 1] : sameName[0];
       weekday = donor.weekday as Weekday;
       tx.delete(shifts).where(eq(shifts.id, donor.id)).run();
@@ -447,11 +475,11 @@ export async function addShiftSegment(name: string) {
 
     tx.insert(shifts)
       .values({
+        scheduleId,
         name,
         weekday,
         // Placeholder time, deliberately not colliding with any existing
-        // segment of this name — the user retimes it via the segment's own
-        // fields, and the day-toggle strip lets them pick the real day.
+        // segment of this name — the user retimes it via the segment's fields.
         startMin: template.endMin,
         endMin: Math.min(template.endMin + 60, 23 * 60 + 59),
         requiredMin: template.requiredMin,
@@ -464,20 +492,22 @@ export async function addShiftSegment(name: string) {
   refresh();
 }
 
-export async function deleteShiftGroup(ids: number[]) {
+export async function deleteShiftGroup(scheduleId: number, ids: number[]) {
+  await requireAdmin(scheduleId);
   if (ids.length === 0) return;
-  pushUndo({ key: "deleteShift", params: { shift: shiftName(ids[0]) } });
+  pushUndo(scheduleId, { key: "deleteShift", params: { shift: shiftName(scheduleId, ids[0]) } });
   db.transaction((tx) => {
-    for (const id of ids) tx.delete(shifts).where(eq(shifts.id, id)).run();
+    for (const id of ids) tx.delete(shifts).where(ownedShift(scheduleId, id)).run();
   });
   refresh();
 }
 
 // --- Settings -------------------------------------------------------------
 
-export async function updateSettings(next: SolverSettings) {
-  pushUndo({ key: "editSettings" });
-  saveSolverSettings(next);
+export async function updateSettings(scheduleId: number, next: SolverSettings) {
+  await requireAdmin(scheduleId);
+  pushUndo(scheduleId, { key: "editSettings" });
+  saveSolverSettings(scheduleId, next);
   refresh();
 }
 

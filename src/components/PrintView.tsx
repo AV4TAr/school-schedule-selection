@@ -9,6 +9,7 @@ import { toHours } from "@/lib/time";
 import type { Assignment, AvailabilityWindow, Person, Shift, Weekday } from "@/lib/types";
 
 interface Props {
+  code: string;
   people: Person[];
   shifts: Shift[];
   availability: AvailabilityWindow[];
@@ -20,7 +21,14 @@ interface Props {
 const CELL = "border border-line px-2.5 py-1.5 align-top text-sm";
 const HEAD = `${CELL} bg-raised/60 text-left text-2xs font-semibold uppercase tracking-wide text-muted`;
 
-export function PrintView({ people, shifts, availability, assignments, weekdays }: Props) {
+export function PrintView({
+  code,
+  people,
+  shifts,
+  availability,
+  assignments,
+  weekdays,
+}: Props) {
   const { t, locale, range, weekday, duration } = useI18n();
 
   const rows = useMemo(() => buildShiftRows(shifts), [shifts]);
@@ -50,7 +58,7 @@ export function PrintView({ people, shifts, availability, assignments, weekdays 
           </p>
         </div>
         <div className="no-print flex gap-2">
-          <Link className="btn" href="/" title={t.hints.back}>
+          <Link className="btn" href={`/s/${code}`} title={t.hints.back}>
             {t.common.back}
           </Link>
           <button

@@ -22,11 +22,12 @@ import {
 } from "@/lib/types";
 
 interface Props {
+  scheduleId: number;
   people: Person[];
   availability: AvailabilityWindow[];
 }
 
-export function PeopleEditor({ people, availability }: Props) {
+export function PeopleEditor({ scheduleId, people, availability }: Props) {
   const { t } = useI18n();
   const [pending, startTransition] = useTransition();
   const [newName, setNewName] = useState("");
@@ -35,7 +36,7 @@ export function PeopleEditor({ people, availability }: Props) {
     const name = newName.trim();
     if (!name) return;
     setNewName("");
-    startTransition(() => void createPerson(name));
+    startTransition(() => void createPerson(scheduleId, name));
   };
 
   return (
@@ -74,6 +75,7 @@ export function PeopleEditor({ people, availability }: Props) {
           {people.map((person, index) => (
             <PersonCard
               key={person.id}
+              scheduleId={scheduleId}
               person={person}
               hue={(index + 1) % 6}
               windows={availability.filter((w) => w.personId === person.id)}
@@ -91,12 +93,14 @@ export function PeopleEditor({ people, availability }: Props) {
 }
 
 function PersonCard({
+  scheduleId,
   person,
   hue,
   windows,
   pending,
   run,
 }: {
+  scheduleId: number;
   person: Person;
   hue: number;
   windows: AvailabilityWindow[];
@@ -121,7 +125,7 @@ function PersonCard({
   const commitName = () => {
     const trimmed = name.trim();
     if (!trimmed || trimmed === person.name) return setName(person.name);
-    run(() => void updatePerson(person.id, { name: trimmed }));
+    run(() => void updatePerson(scheduleId, person.id, { name: trimmed }));
   };
 
   return (
@@ -150,7 +154,7 @@ function PersonCard({
             checked={person.active}
             disabled={pending}
             onChange={(e) =>
-              run(() => void updatePerson(person.id, { active: e.target.checked }))
+              run(() => void updatePerson(scheduleId, person.id, { active: e.target.checked }))
             }
           />
           {t.common.active}
@@ -168,7 +172,7 @@ function PersonCard({
           title={t.hints.deletePerson}
           disabled={pending}
           onClick={() => {
-            if (confirm(t.common.confirmDelete)) run(() => void deletePerson(person.id));
+            if (confirm(t.common.confirmDelete)) run(() => void deletePerson(scheduleId, person.id));
           }}
         >
           {t.people.deletePerson}
@@ -190,7 +194,7 @@ function PersonCard({
                   disabled={pending}
                   onChange={(e) =>
                     run(() =>
-                      void updateAvailability(w.id, {
+                      void updateAvailability(scheduleId, w.id, {
                         weekday: Number(e.target.value) as Weekday,
                       }),
                     )
@@ -206,20 +210,20 @@ function PersonCard({
                 <TimeField
                   value={w.startMin}
                   disabled={pending}
-                  onCommit={(startMin) => run(() => void updateAvailability(w.id, { startMin }))}
+                  onCommit={(startMin) => run(() => void updateAvailability(scheduleId, w.id, { startMin }))}
                 />
                 <span className="text-faint">→</span>
                 <TimeField
                   value={w.endMin}
                   disabled={pending}
-                  onCommit={(endMin) => run(() => void updateAvailability(w.id, { endMin }))}
+                  onCommit={(endMin) => run(() => void updateAvailability(scheduleId, w.id, { endMin }))}
                 />
 
                 <PreferencePicker
                   value={w.preference}
                   disabled={pending}
                   onChange={(preference) =>
-                    run(() => void updateAvailability(w.id, { preference }))
+                    run(() => void updateAvailability(scheduleId, w.id, { preference }))
                   }
                 />
 
@@ -229,7 +233,7 @@ function PersonCard({
                   disabled={pending}
                   aria-label={t.common.delete}
                   title={t.hints.deleteWindow}
-                  onClick={() => run(() => void deleteAvailability(w.id))}
+                  onClick={() => run(() => void deleteAvailability(scheduleId, w.id))}
                 >
                   ✕
                 </button>
@@ -244,7 +248,7 @@ function PersonCard({
           title={t.hints.addWindow}
           disabled={pending}
           onClick={() =>
-            run(() => void createAvailability(person.id, 1, 8 * 60, 13 * 60 + 15))
+            run(() => void createAvailability(scheduleId, person.id, 1, 8 * 60, 13 * 60 + 15))
           }
         >
           + {t.people.addWindow}

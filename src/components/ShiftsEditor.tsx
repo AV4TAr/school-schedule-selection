@@ -73,7 +73,13 @@ function groupShifts(shifts: Shift[]): NameGroup[] {
     .sort((a, b) => a.segments[0].startMin - b.segments[0].startMin);
 }
 
-export function ShiftsEditor({ shifts }: { shifts: Shift[] }) {
+export function ShiftsEditor({
+  scheduleId,
+  shifts,
+}: {
+  scheduleId: number;
+  shifts: Shift[];
+}) {
   const { t } = useI18n();
   const [pending, startTransition] = useTransition();
   const groups = useMemo(() => groupShifts(shifts), [shifts]);
@@ -93,7 +99,7 @@ export function ShiftsEditor({ shifts }: { shifts: Shift[] }) {
           onClick={() =>
             startTransition(
               () =>
-                void createShift({
+                void createShift(scheduleId, {
                   name: t.shifts.newShift,
                   weekday: 1,
                   startMin: 12 * 60,
@@ -117,6 +123,7 @@ export function ShiftsEditor({ shifts }: { shifts: Shift[] }) {
           {groups.map((group) => (
             <NameGroupCard
               key={group.name}
+              scheduleId={scheduleId}
               group={group}
               pending={pending}
               run={startTransition}
@@ -132,10 +139,12 @@ export function ShiftsEditor({ shifts }: { shifts: Shift[] }) {
 }
 
 function NameGroupCard({
+  scheduleId,
   group,
   pending,
   run,
 }: {
+  scheduleId: number;
   group: NameGroup;
   pending: boolean;
   run: (fn: () => void) => void;
@@ -156,7 +165,7 @@ function NameGroupCard({
           className="btn btn-sm ml-auto"
           title={canSplit ? t.hints.addSegment : t.hints.addSegmentDisabled}
           disabled={pending || !canSplit}
-          onClick={() => run(() => void addShiftSegment(group.name))}
+          onClick={() => run(() => void addShiftSegment(scheduleId, group.name))}
         >
           + {t.shifts.addSegment}
         </button>
@@ -166,6 +175,7 @@ function NameGroupCard({
         {group.segments.map((segment) => (
           <SegmentRow
             key={segment.key}
+            scheduleId={scheduleId}
             name={group.name}
             segment={segment}
             /** So the day-toggle strip can grey out days another segment already owns. */
@@ -185,6 +195,7 @@ function NameGroupCard({
 }
 
 function SegmentRow({
+  scheduleId,
   name,
   segment,
   takenElsewhere,
@@ -192,6 +203,7 @@ function SegmentRow({
   pending,
   run,
 }: {
+  scheduleId: number;
   name: string;
   segment: Segment;
   takenElsewhere: Set<Weekday>;
@@ -204,7 +216,7 @@ function SegmentRow({
   const patch = (changes: Partial<Segment>) => {
     const next = { ...segment, ...changes };
     run(() =>
-      void updateShiftGroup(segment.ids, {
+      void updateShiftGroup(scheduleId, segment.ids, {
         name,
         startMin: next.startMin,
         endMin: next.endMin,
@@ -287,7 +299,7 @@ function SegmentRow({
                       ? t.hints.stealDay
                       : weekday(day)
                 }
-                onClick={() => run(() => void setShiftWeekday(segment.ids, day, !on))}
+                onClick={() => run(() => void setShiftWeekday(scheduleId, segment.ids, day, !on))}
                 className={`h-8 w-9 rounded-[var(--r-sm)] border text-2xs font-semibold transition ${
                   on
                     ? "border-accent bg-accent-soft text-accent"
@@ -324,7 +336,7 @@ function SegmentRow({
         title={t.hints.deleteShift}
         disabled={pending}
         onClick={() => {
-          if (confirm(t.common.confirmDelete)) run(() => void deleteShiftGroup(segment.ids));
+          if (confirm(t.common.confirmDelete)) run(() => void deleteShiftGroup(scheduleId, segment.ids));
         }}
       >
         {t.shifts.deleteShift}

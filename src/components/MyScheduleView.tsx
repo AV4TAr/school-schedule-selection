@@ -18,6 +18,8 @@ function todayAsSchoolWeekday(): Weekday {
 }
 
 interface Props {
+  code: string;
+  scheduleName: string;
   people: Person[];
   shifts: Shift[];
   assignments: Assignment[];
@@ -29,7 +31,13 @@ interface Props {
  * each visit, by design) but survives day/week/scope toggles within the
  * session since those don't remount this component.
  */
-export function MyScheduleView({ people, shifts, assignments }: Props) {
+export function MyScheduleView({
+  code,
+  scheduleName,
+  people,
+  shifts,
+  assignments,
+}: Props) {
   const [personId, setPersonId] = useState<number | null>(null);
 
   const hueOf = useMemo(
@@ -38,7 +46,14 @@ export function MyScheduleView({ people, shifts, assignments }: Props) {
   );
 
   if (personId === null) {
-    return <IdentityPicker people={people} hueOf={hueOf} onPick={setPersonId} />;
+    return (
+      <IdentityPicker
+        scheduleName={scheduleName}
+        people={people}
+        hueOf={hueOf}
+        onPick={setPersonId}
+      />
+    );
   }
 
   const person = people.find((p) => p.id === personId);
@@ -51,6 +66,7 @@ export function MyScheduleView({ people, shifts, assignments }: Props) {
 
   return (
     <Schedule
+      code={code}
       person={person}
       people={people}
       shifts={shifts}
@@ -62,10 +78,12 @@ export function MyScheduleView({ people, shifts, assignments }: Props) {
 }
 
 function IdentityPicker({
+  scheduleName,
   people,
   hueOf,
   onPick,
 }: {
+  scheduleName: string;
   people: Person[];
   hueOf: Map<number, number>;
   onPick: (id: number) => void;
@@ -80,6 +98,7 @@ function IdentityPicker({
         >
           SS
         </span>
+        <p className="mb-1 text-xs text-muted">{scheduleName}</p>
         <h1 className="page-title">{t.mySchedule.whoAreYou}</h1>
       </div>
       <div className="space-y-2.5">
@@ -106,6 +125,7 @@ function IdentityPicker({
 }
 
 function Schedule({
+  code,
   person,
   people,
   shifts,
@@ -113,6 +133,7 @@ function Schedule({
   hueOf,
   onChangePerson,
 }: {
+  code: string;
   person: Person;
   people: Person[];
   shifts: Shift[];
@@ -295,7 +316,7 @@ function Schedule({
         )}
 
         <p className="pt-2 text-center">
-          <Link href="/" className="text-2xs text-faint underline underline-offset-2">
+          <Link href={`/s/${code}`} className="text-2xs text-faint underline underline-offset-2">
             {t.mySchedule.adminLink}
           </Link>
         </p>

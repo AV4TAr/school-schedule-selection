@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
 
-import { Nav } from "@/components/Nav";
-import { getUndoLabels } from "@/lib/db/undo";
 import { LocaleProvider } from "@/lib/i18n/context";
 import { DEFAULT_THEME, THEME_INIT_SCRIPT } from "@/lib/theme";
 
@@ -13,8 +11,11 @@ export const metadata: Metadata = {
     "Build and balance the weekly supervision rota from each person's availability.",
 };
 
-export const dynamic = "force-dynamic";
-
+/**
+ * Deliberately chrome-free: the landing page and each /s/[code] section bring
+ * their own header, since a schedule's nav depends on a code this layout has
+ * no access to.
+ */
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" data-theme={DEFAULT_THEME}>
@@ -23,10 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body className="min-h-screen">
-        <LocaleProvider>
-          <Nav undoLabels={getUndoLabels()} />
-          <main className="mx-auto max-w-6xl px-6 py-7">{children}</main>
-        </LocaleProvider>
+        <LocaleProvider>{children}</LocaleProvider>
       </body>
     </html>
   );
