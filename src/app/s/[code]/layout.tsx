@@ -35,7 +35,7 @@ export default async function ScheduleLayout({
         undoLabels={admin ? getUndoLabels(schedule.id) : []}
         redoLabels={admin ? getRedoLabels(schedule.id) : []}
       />
-      <main className="mx-auto max-w-6xl px-6 py-7">{children}</main>
+      <main className="mx-auto max-w-6xl px-4 py-5 md:px-6 md:py-7">{children}</main>
     </>
   );
 }

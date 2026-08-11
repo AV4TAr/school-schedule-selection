@@ -21,6 +21,9 @@ const en = {
     settings: "Settings",
     print: "Print view",
     myScheduleLink: "Staff view",
+    more: "More",
+    menu: "Menu",
+    close: "Close",
   },
   weekdays: {
     long: ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
@@ -353,6 +356,9 @@ const es: Dictionary = {
     settings: "Ajustes",
     print: "Vista de impresión",
     myScheduleLink: "Vista del personal",
+    more: "Más",
+    menu: "Menú",
+    close: "Cerrar",
   },
   weekdays: {
     long: ["", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"],
