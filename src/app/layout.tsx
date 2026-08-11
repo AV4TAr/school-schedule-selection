@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { Footer } from "@/components/Footer";
 import { LocaleProvider } from "@/lib/i18n/context";
 import { DEFAULT_THEME, THEME_INIT_SCRIPT } from "@/lib/theme";
 
@@ -31,7 +32,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body className="min-h-screen">
-        <LocaleProvider>{children}</LocaleProvider>
+        <LocaleProvider>
+          {children}
+          <Footer />
+        </LocaleProvider>
       </body>
     </html>
   );

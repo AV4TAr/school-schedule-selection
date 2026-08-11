@@ -13,7 +13,7 @@ const nextConfig: NextConfig = {
   // the page looks dead, with no error pointing at the real cause. Harmless in
   // production (`next start`): this config key does not exist there, and
   // `npm run dev` is never how the school actually runs the app day to day.
-  allowedDevOrigins: ["127.0.0.1", "localhost", "192.168.86.43"],
+  allowedDevOrigins: ["127.0.0.1", "localhost", "diego.local", "192.168.86.45"],
 };
 
 export default nextConfig;

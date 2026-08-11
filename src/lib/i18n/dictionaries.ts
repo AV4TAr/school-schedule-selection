@@ -303,6 +303,9 @@ const en = {
     byPerson: "By person",
     byShift: "By shift",
   },
+  footer: {
+    dedication: "Built with love ❤️ for my wife.",
+  },
 } as const;
 
 /**
@@ -611,6 +614,9 @@ const es: Dictionary = {
     print: "Imprimir",
     byPerson: "Por persona",
     byShift: "Por turno",
+  },
+  footer: {
+    dedication: "Hecho con amor ❤️ para mi esposa.",
   },
 };
 

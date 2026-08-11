@@ -1,0 +1,30 @@
+services:
+  app:
+    build: .
+    container_name: school-schedule-selection
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      - DATABASE_PATH=/app/data/schedule.db
+    volumes:
+      - schedule-data:/app/data
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.school-schedule-selection.rule=Host(`schedule.diego.uy`)"
+      - "traefik.http.routers.school-schedule-selection.entrypoints=web"
+      - "traefik.http.services.school-schedule-selection.loadbalancer.server.port=3000"
+    networks:
+      - deploy-net
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+networks:
+  deploy-net:
+    external: true
+
+volumes:
+  schedule-data:
