@@ -70,6 +70,11 @@ export function createSchedule(code: string, name: string, passwordHash: string)
   return row.id;
 }
 
+export function setScheduleCode(scheduleId: number, code: string) {
+  ensureDatabase();
+  db.update(schedules).set({ code }).where(eq(schedules.id, scheduleId)).run();
+}
+
 export function renameSchedule(scheduleId: number, name: string) {
   ensureDatabase();
   const trimmed = name.trim();

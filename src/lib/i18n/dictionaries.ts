@@ -156,7 +156,10 @@ const en = {
     language: "Language",
     scheduleSection: "This schedule",
     scheduleCode: "Share code",
-    scheduleCodeHint: "Anyone with this code can view the schedule, but not change it.",
+    scheduleCodeHint:
+      "Anyone with this code can view the schedule, but not change it. Changing it breaks any link or bookmark using the old one.",
+    codeTaken: "That code is already in use.",
+    codeInvalid: "Use 4–15 letters or numbers.",
     scheduleNameLabel: "Name",
     changePassword: "Change admin password",
     currentPassword: "Current password",
@@ -174,12 +177,22 @@ const en = {
     weightsHint:
       "Higher means the solver tries harder. The two understaffing weights are deliberately far larger than the rest so coverage always wins.",
     understaffCritical: "Avoid understaffing",
+    understaffCriticalHint:
+      "Cost for every person short of the minimum a shift needs. Kept far above every other weight so understaffing always outranks fairness or preferences.",
     understaffIdeal: "Reach preferred headcount",
+    understaffIdealHint:
+      "Cost for every person short of the preferred headcount, once the minimum is already met. Much smaller than the minimum weight above.",
     fairness: "Even out hours",
+    fairnessHint:
+      "Cost for uneven total hours across people — the more spread out the hours, the higher the cost.",
     idleTime: "Avoid waiting between shifts",
+    idleTimeHint: "Cost per minute someone waits unpaid between two of their own shifts on the same day.",
     dayOff: "Give everyone a day off",
+    dayOffHint: "Reward for each person who ends the week with at least one day off.",
     preferred: "Honour preferred hours",
+    preferredHint: "Reward per minute worked inside a person's marked \"preferred\" availability.",
     avoid: "Keep people out of hours they dislike",
+    avoidHint: "Cost per minute worked inside a person's marked \"avoid\" availability.",
     reset: "Restore defaults",
     saved: "Settings saved.",
   },
@@ -468,7 +481,10 @@ const es: Dictionary = {
     language: "Idioma",
     scheduleSection: "Este horario",
     scheduleCode: "Código para compartir",
-    scheduleCodeHint: "Cualquiera con este código puede ver el horario, pero no modificarlo.",
+    scheduleCodeHint:
+      "Cualquiera con este código puede ver el horario, pero no modificarlo. Cambiarlo invalida cualquier link o marcador que use el código anterior.",
+    codeTaken: "Ese código ya está en uso.",
+    codeInvalid: "Usá entre 4 y 15 letras o números.",
     scheduleNameLabel: "Nombre",
     changePassword: "Cambiar la contraseña de administrador",
     currentPassword: "Contraseña actual",
@@ -486,12 +502,22 @@ const es: Dictionary = {
     weightsHint:
       "Más alto significa que el generador se esfuerza más. Los dos pesos de falta de personal son muchísimo más grandes que el resto para que la cobertura siempre gane.",
     understaffCritical: "Evitar falta de personal",
+    understaffCriticalHint:
+      "Costo por cada persona que falta para llegar al mínimo que necesita un turno. Se mantiene muy por encima del resto para que la falta de personal siempre gane sobre la equidad o las preferencias.",
     understaffIdeal: "Llegar a la cantidad ideal",
+    understaffIdealHint:
+      "Costo por cada persona que falta para llegar a la cantidad ideal, una vez cubierto el mínimo. Mucho menor que el peso del mínimo.",
     fairness: "Emparejar las horas",
+    fairnessHint:
+      "Costo por horas desparejas entre personas — cuanto más dispersas las horas, mayor el costo.",
     idleTime: "Evitar esperas entre turnos",
+    idleTimeHint: "Costo por cada minuto que alguien espera sin trabajar entre dos de sus propios turnos el mismo día.",
     dayOff: "Dar un día libre a cada una",
+    dayOffHint: "Beneficio por cada persona que termina la semana con al menos un día libre.",
     preferred: "Respetar los horarios preferidos",
+    preferredHint: "Beneficio por cada minuto trabajado dentro de una disponibilidad marcada como \"preferida\".",
     avoid: "Evitar los horarios que no les gustan",
+    avoidHint: "Costo por cada minuto trabajado dentro de una disponibilidad marcada como \"evitar\".",
     reset: "Restaurar valores por defecto",
     saved: "Ajustes guardados.",
   },

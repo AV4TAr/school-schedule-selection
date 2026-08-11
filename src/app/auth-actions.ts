@@ -2,13 +2,20 @@
 
 import { redirect } from "next/navigation";
 
-import { generateCode, hashPassword, normaliseCode, verifyPassword } from "@/lib/auth";
+import {
+  generateCode,
+  hashPassword,
+  isValidCustomCode,
+  normaliseCode,
+  verifyPassword,
+} from "@/lib/auth";
 import {
   createSchedule,
   getPasswordHash,
   getScheduleByCode,
   renameSchedule,
   setPasswordHash,
+  setScheduleCode,
 } from "@/lib/db/queries";
 import { endAdminSession, isAdmin, requireAdmin, startAdminSession } from "@/lib/session";
 
@@ -105,6 +112,26 @@ export async function changePassword(
 export async function updateScheduleName(scheduleId: number, name: string) {
   await requireAdmin(scheduleId);
   renameSchedule(scheduleId, name);
+}
+
+/**
+ * The code is a read capability shared around by link or word of mouth, so
+ * changing it immediately invalidates the old one — anyone still holding it
+ * gets a 404, which is the point. The admin session survives the change
+ * because it's keyed by `scheduleId`, not by code.
+ */
+export async function updateScheduleCode(scheduleId: number, rawCode: string) {
+  await requireAdmin(scheduleId);
+  if (!isValidCustomCode(rawCode)) {
+    return { ok: false as const, error: "invalid" as const };
+  }
+  const code = normaliseCode(rawCode);
+  const existing = getScheduleByCode(code);
+  if (existing && existing.id !== scheduleId) {
+    return { ok: false as const, error: "taken" as const };
+  }
+  setScheduleCode(scheduleId, code);
+  return { ok: true as const, code };
 }
 
 /** Exposed so server components can branch on view-only vs admin. */
