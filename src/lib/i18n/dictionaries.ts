@@ -232,6 +232,7 @@ const en = {
     empty: "Nothing to undo",
     shortcut: "\u2318Z / Ctrl+Z",
     tooltip: "Undo: {action}",
+    confirm: "Undo: {action}?",
     actions: {
       unknown: "last change",
       generate: "generating the schedule",
@@ -251,6 +252,13 @@ const en = {
       deleteShift: "removing {shift}",
       editSettings: "changing settings",
     },
+  },
+  redo: {
+    label: "Redo",
+    empty: "Nothing to redo",
+    shortcut: "\u2318\u21e7Z / Ctrl+Y",
+    tooltip: "Redo: {action}",
+    confirm: "Redo: {action}?",
   },
   auth: {
     signIn: "Sign in",
@@ -557,6 +565,7 @@ const es: Dictionary = {
     empty: "Nada para deshacer",
     shortcut: "\u2318Z / Ctrl+Z",
     tooltip: "Deshacer: {action}",
+    confirm: "\u00bfDeshacer: {action}?",
     actions: {
       unknown: "el \u00faltimo cambio",
       generate: "generar el horario",
@@ -576,6 +585,13 @@ const es: Dictionary = {
       deleteShift: "quitar {shift}",
       editSettings: "cambiar los ajustes",
     },
+  },
+  redo: {
+    label: "Rehacer",
+    empty: "Nada para rehacer",
+    shortcut: "\u2318\u21e7Z / Ctrl+Y",
+    tooltip: "Rehacer: {action}",
+    confirm: "\u00bfRehacer: {action}?",
   },
   auth: {
     signIn: "Entrar",

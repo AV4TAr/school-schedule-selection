@@ -2,16 +2,16 @@
 
 import { useCallback, useEffect, useTransition } from "react";
 
-import { undoLast } from "@/app/actions";
+import { redoLast } from "@/app/actions";
 import { useI18n } from "@/lib/i18n/context";
 import type { UndoLabel } from "@/lib/db/undo";
 
 /**
- * Undo control for the header. Labels arrive as `{ key, params }` and are
- * translated here, so a step recorded in English still reads correctly after
- * switching to Spanish.
+ * Redo control for the header, mirroring `UndoButton`. Labels reuse
+ * `t.undo.actions` — a redo entry describes the same action an undo entry
+ * would, just framed as "do this again" instead of "reverse this".
  */
-export function UndoButton({
+export function RedoButton({
   scheduleId,
   labels,
 }: {
@@ -33,18 +33,19 @@ export function UndoButton({
     [t, fmt],
   );
 
-  const confirmAndUndo = useCallback(() => {
-    if (!next || !confirm(fmt(t.undo.confirm, { action: describe(next) }))) return;
-    startTransition(() => void undoLast(scheduleId));
+  const confirmAndRedo = useCallback(() => {
+    if (!next || !confirm(fmt(t.redo.confirm, { action: describe(next) }))) return;
+    startTransition(() => void redoLast(scheduleId));
   }, [next, describe, fmt, t, scheduleId, startTransition]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      const isUndo =
-        (event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === "z";
-      if (!isUndo) return;
+      const isRedo =
+        ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === "z") ||
+        (event.ctrlKey && event.key.toLowerCase() === "y");
+      if (!isRedo) return;
 
-      // Leave the browser's own undo alone while the user is editing a field.
+      // Leave the browser's own redo alone while the user is editing a field.
       const target = event.target as HTMLElement | null;
       if (
         target?.isContentEditable ||
@@ -54,27 +55,27 @@ export function UndoButton({
       }
 
       event.preventDefault();
-      confirmAndUndo();
+      confirmAndRedo();
     };
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [confirmAndUndo]);
+  }, [confirmAndRedo]);
 
   return (
     <button
       type="button"
       className="btn btn-sm"
       disabled={disabled}
-      onClick={confirmAndUndo}
+      onClick={confirmAndRedo}
       title={
         next
-          ? `${fmt(t.undo.tooltip, { action: describe(next) })} · ${t.undo.shortcut}`
-          : t.undo.empty
+          ? `${fmt(t.redo.tooltip, { action: describe(next) })} · ${t.redo.shortcut}`
+          : t.redo.empty
       }
     >
-      <span aria-hidden>↶</span>
-      <span className="hidden sm:inline">{t.undo.label}</span>
+      <span aria-hidden>↷</span>
+      <span className="hidden sm:inline">{t.redo.label}</span>
       {labels.length > 0 && <span className="pill">{labels.length}</span>}
     </button>
   );

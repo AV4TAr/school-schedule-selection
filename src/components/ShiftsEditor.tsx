@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 
 import {
   addShiftSegment,
@@ -150,13 +150,43 @@ function NameGroupCard({
   run: (fn: () => void) => void;
 }) {
   const { t } = useI18n();
+  const [name, setName] = useState(group.name);
   const totalDays = new Set(group.segments.flatMap((s) => [...s.weekdays])).size;
   const canSplit = totalDays > 1 || group.segments.length > 1;
+
+  const rename = () => {
+    const trimmed = name.trim();
+    if (!trimmed || trimmed === group.name) return setName(group.name);
+    // A group's segments can each have their own time and headcount, so the
+    // shared name is patched onto every segment individually rather than in
+    // one call — the same way updateShiftGroup is already used per segment.
+    run(() =>
+      void Promise.all(
+        group.segments.map((segment) =>
+          updateShiftGroup(scheduleId, segment.ids, {
+            name: trimmed,
+            startMin: segment.startMin,
+            endMin: segment.endMin,
+            requiredMin: segment.requiredMin,
+            requiredIdeal: segment.requiredIdeal,
+            active: segment.active,
+          }),
+        ),
+      ),
+    );
+  };
 
   return (
     <section className="card overflow-hidden">
       <div className="flex flex-wrap items-center gap-2.5 border-b border-line bg-raised/50 px-4 py-2.5">
-        <h2 className="text-sm font-semibold">{group.name}</h2>
+        <input
+          className="field w-44 text-sm font-semibold"
+          value={name}
+          disabled={pending}
+          onChange={(e) => setName(e.target.value)}
+          onBlur={rename}
+          onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+        />
         <span className="pill">
           {totalDays} {t.shifts.days}
         </span>
