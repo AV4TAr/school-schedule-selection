@@ -249,22 +249,35 @@ export function ScheduleView({
                               }
                             />
 
-                            {gap && (
-                              <span
-                                title={fmt(
-                                  gap.critical ? t.schedule.criticalGapHint : t.schedule.idealGapHint,
-                                  { assigned: gap.assigned, ideal: gap.requiredIdeal },
-                                )}
-                                className={`pill mt-0.5 self-start cursor-help ${
-                                  gap.critical ? "pill-danger" : "pill-warn"
-                                }`}
-                              >
-                                <span aria-hidden>{gap.critical ? "▾" : "!"}</span>
-                                <span className="num">
-                                  {gap.assigned}/{gap.requiredIdeal}
-                                </span>
+                            <span
+                              title={
+                                gap
+                                  ? fmt(
+                                      gap.critical
+                                        ? t.schedule.criticalGapHint
+                                        : t.schedule.idealGapHint,
+                                      { assigned: gap.assigned, ideal: gap.requiredIdeal },
+                                    )
+                                  : fmt(t.schedule.fullyStaffedHint, {
+                                      assigned: staff.length,
+                                      ideal: shift.requiredIdeal,
+                                    })
+                              }
+                              className={`pill mt-0.5 self-start cursor-help ${
+                                gap?.critical
+                                  ? "pill-danger"
+                                  : gap
+                                    ? "pill-warn"
+                                    : "pill-ok"
+                              }`}
+                            >
+                              <span aria-hidden>
+                                {gap?.critical ? "▾" : gap ? "!" : "✓"}
                               </span>
-                            )}
+                              <span className="num">
+                                {staff.length}/{shift.requiredIdeal}
+                              </span>
+                            </span>
                           </div>
                         </td>
                       );

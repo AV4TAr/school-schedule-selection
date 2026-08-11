@@ -6,12 +6,14 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["better-sqlite3"],
 
   // Next.js blocks cross-origin requests to dev-only resources by default.
-  // Browser automation tools (agent-browser, Playwright, etc.) commonly reach
-  // the dev server as 127.0.0.1 while it thinks of itself as localhost, which
-  // trips that guard and silently breaks hydration — chunks 403, React never
-  // attaches, and every click handler on the page looks dead. Harmless in
-  // production: this config key does not exist there.
-  allowedDevOrigins: ["127.0.0.1", "localhost"],
+  // Browser automation tools commonly reach the dev server as 127.0.0.1 while
+  // it thinks of itself as localhost, and a phone/laptop on the LAN reaches it
+  // by its network IP — either trips this guard and silently breaks
+  // hydration: chunks 403, the HMR websocket fails, and every click handler on
+  // the page looks dead, with no error pointing at the real cause. Harmless in
+  // production (`next start`): this config key does not exist there, and
+  // `npm run dev` is never how the school actually runs the app day to day.
+  allowedDevOrigins: ["127.0.0.1", "localhost", "192.168.86.43"],
 };
 
 export default nextConfig;

@@ -73,6 +73,7 @@ const en = {
     idealGap: "Below preferred",
     criticalGapHint: "Understaffed: {assigned} of {ideal} needed — below the minimum",
     idealGapHint: "Below preferred: {assigned} of {ideal} needed — meets the minimum, short of ideal",
+    fullyStaffedHint: "Fully staffed: {assigned} of {ideal}",
     coverageTitle: "Coverage warnings",
     coverageOk: "Every shift meets its minimum.",
     conflicts:
@@ -309,6 +310,7 @@ const es: Dictionary = {
     idealGap: "Por debajo de lo ideal",
     criticalGapHint: "Falta personal: {assigned} de {ideal} necesarias — por debajo del mínimo",
     idealGapHint: "Por debajo de lo ideal: {assigned} de {ideal} necesarias — cumple el mínimo, falta para el ideal",
+    fullyStaffedHint: "Cobertura completa: {assigned} de {ideal}",
     coverageTitle: "Alertas de cobertura",
     coverageOk: "Todos los turnos cumplen su mínimo.",
     conflicts:
